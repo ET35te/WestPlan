@@ -1,0 +1,38 @@
+fileFormatVersion: 2
+guid: ea5d9ee180de8244ea2d379f2fb9a205
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - MainMenuPanel: {fileID: 6187596068670325511, guid: ca79d1e40fa6e5f4bb54d09dfda8eb32, type: 3}
+  - GameplayPanel: {fileID: 7228087297821381593, guid: 6361d3f648a93f440bb0d7c68e8fafee, type: 3}
+  - ResultPanel: {fileID: 339390989177024065, guid: eeb89bd10e7c4cd4eb1f9af95eb8a769, type: 3}
+  - AchievementPanel: {fileID: 6842378699924570244, guid: 5e45d2ff5233f3044bc4a2fa849cb55d, type: 3}
+  - NodeSummaryPanel: {fileID: 7421550579053513658, guid: e1b5366a426742e438f03036d1b469d7, type: 3}
+  - BattlePanel: {fileID: 2142739172611195398, guid: 5cf5c10721878fe4d9f0b43307803aae, type: 3}
+  - HUDLayer: {fileID: 4025429941280928206, guid: 6018925f8972abf41b6580513b959ce3, type: 3}
+  - EndingLayer: {fileID: 5304504698205594086, guid: d20a68a7e1f6a5347bfeac489903e619, type: 3}
+  - TitleText: {fileID: 8791144618594378723, guid: 8127e4f3d9d6e824793a12330468dadf, type: 3}
+  - StartBtn: {fileID: 1625340663723617137, guid: 1c79d9097bbb0cb409232410c5af7e9d, type: 3}
+  - QuitBtn: {fileID: 8432689938050568647, guid: 55e00012a34d7d34d8cae08cbe0913d6, type: 3}
+  - AchievementBtn: {fileID: 3985359219686976340, guid: 633215af36eb5ac48bd488eac4eddbec, type: 3}
+  - EventTitleText: {fileID: 8791144618594378723, guid: 8127e4f3d9d6e824793a12330468dadf, type: 3}
+  - PlaceText: {fileID: 8460566992865643650, guid: 2f69b63309d1dab4f9cc6ebaf97b1ea2, type: 3}
+  - ContextText: {fileID: 314423588503119845, guid: a87de94fc6afc054e9e481612f7181f2, type: 3}
+  - ButtonA: {fileID: 8286257189614006699, guid: 2796c7f354d0ba541a20072ea7860713, type: 3}
+  - ButtonB: {fileID: 1978777215474464882, guid: a062f003121e5e742802139b7bdaabd1, type: 3}
+  - ResultText: {fileID: 7127598133468843271, guid: 707e56ca6f9131f40b3d8ce813dc68a3, type: 3}
+  - ConfirmResultBtn: {fileID: 1185257717120394004, guid: d76c1efcfe5de664690e591cc0377b3c, type: 3}
+  - SummaryTitleText: {fileID: 5186109264147572780, guid: 4742ec662c364634f96c52e259d4ea4a, type: 3}
+  - SummaryContentText: {fileID: 2321756500059020294, guid: 2ac3908259e2fe94aa455859a01c3e75, type: 3}
+  - ToBeContinueBtn: {fileID: 7526996070085326442, guid: da6d78d6f4c68a7429a003da3a94fd34, type: 3}
+  - CardContainer: {fileID: 4704004047900096935, guid: dc567770d4245df4086127d865519940, type: 3}
+  - ConfirmBattleBtn: {fileID: 7069635421886744258, guid: a6756c3f3810c114eb97e376fdad3741, type: 3}
+  - ScrollingText: {fileID: 9079275959790697399, guid: 5e9d441fe8cfa224587157b1633e479c, type: 3}
+  - GlobalQuitToTitleBtn: {fileID: 6093546185953475875, guid: 5e65eb42da6dec245a10f89717e12381, type: 3}
+  - ResourceInfoText: {fileID: 3139959191721827139, guid: 97949fa728fb2bc4c99948e06e898f05, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
