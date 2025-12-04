@@ -32,6 +32,7 @@ public class UIManager : MonoBehaviour
     public Button AchievementBtn;       
 
     [Header("--- 2. 游玩界面组件 ---")]
+    public GameObject EventWindow;
     public TMP_Text EventTitleText;     
     public TMP_Text PlaceText;          
     public TMP_Text ContextText;        
@@ -133,23 +134,49 @@ public class UIManager : MonoBehaviour
 
     public void ShowNextEvent()
     {
-        Debug.Log($"尝试显示事件：{currentEvent.Title}");
+        // 1. 尝试获取事件
         currentEvent = DataManager.Instance.GetRandomEvent();
-        if (currentEvent == null) return;
+        
+        // 【调试关键点】如果没有读到事件，打印错误
+        if (currentEvent == null) 
+        {
+            Debug.LogError("【严重错误】没有获取到随机事件！请检查 EventTable.csv 是否在 Resources/Data 下，且内容不为空！");
+            return;
+        }
+        
+        Debug.Log($"【流程】准备显示事件：{currentEvent.Title} (战斗: {!currentEvent.IsPeaceful})");
 
+        // 2. 判断是否触发战斗
         if (currentEvent.IsPeaceful == false)
         {
-            SwitchState(UIState.Battle);
-            NewBattleManager.Instance.StartBattle(currentEvent);
+            // --- 战斗逻辑 ---
+            SwitchState(UIState.Battle); // 切换到战斗UI层级
+            
+            // 确保这里呼叫的是 NewBattleManager
+            if (NewBattleManager.Instance != null)
+            {
+                NewBattleManager.Instance.StartBattle(currentEvent);
+            }
+            else
+            {
+                Debug.LogError("【严重错误】找不到 NewBattleManager 实例！请检查是否挂载了脚本！");
+            }
         }
         else
         {
-            SwitchState(UIState.Gameplay);
-            EventTitleText.text = currentEvent.Title;
-            ContextText.text = currentEvent.Context;
+            // --- 和平/剧情逻辑 ---
+            SwitchState(UIState.Gameplay); // 切换到剧情UI层级
             
-            ButtonA.GetComponentInChildren<TMP_Text>().text = currentEvent.OptA_Text;
-            ButtonB.GetComponentInChildren<TMP_Text>().text = currentEvent.OptB_Text;
+            // 填充文本
+            if(EventTitleText != null) EventTitleText.text = currentEvent.Title;
+            if(ContextText != null) ContextText.text = currentEvent.Context;
+            
+            // 按钮文字赋值 (防止按钮没挂对报错)
+            if(ButtonA != null) ButtonA.GetComponentInChildren<TMP_Text>().text = currentEvent.OptA_Text;
+            if(ButtonB != null) ButtonB.GetComponentInChildren<TMP_Text>().text = currentEvent.OptB_Text;
+            
+            // 确保事件窗口是打开的 (以防 Gameplay Panel 打开了但里面的 Event Window 关着)
+            if(EventWindow != null) EventWindow.SetActive(true); // 👈 这一步很重要！
         }
     }
 
