@@ -133,6 +133,7 @@ public class UIManager : MonoBehaviour
 
     public void ShowNextEvent()
     {
+        Debug.Log($"尝试显示事件：{currentEvent.Title}");
         currentEvent = DataManager.Instance.GetRandomEvent();
         if (currentEvent == null) return;
 

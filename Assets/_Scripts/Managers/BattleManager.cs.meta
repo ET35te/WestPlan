@@ -3,7 +3,10 @@ guid: 77958caae6c91784d9bb74c59ad6645c
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - BattlePanel: {fileID: 2142739172611195398, guid: 5cf5c10721878fe4d9f0b43307803aae, type: 3}
+  - CardContainer: {fileID: 4704004047900096935, guid: dc567770d4245df4086127d865519940, type: 3}
+  - CardPrefab: {fileID: 8840476687114148182, guid: 96147498590388e45a2fab22f54ea69b, type: 3}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

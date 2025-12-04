@@ -3,7 +3,9 @@ guid: b236862257299ad428954a546bb1c7a5
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - TooltipObj: {fileID: 2682034536558149526, guid: 3f8c4feaad2267749bda0be3cc8f1351, type: 3}
+  - TooltipText: {fileID: 7127598133468843271, guid: 707e56ca6f9131f40b3d8ce813dc68a3, type: 3}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 
