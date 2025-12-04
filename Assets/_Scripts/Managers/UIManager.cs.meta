@@ -16,6 +16,7 @@ MonoImporter:
   - StartBtn: {fileID: 1625340663723617137, guid: 1c79d9097bbb0cb409232410c5af7e9d, type: 3}
   - QuitBtn: {fileID: 8432689938050568647, guid: 55e00012a34d7d34d8cae08cbe0913d6, type: 3}
   - AchievementBtn: {fileID: 3985359219686976340, guid: 633215af36eb5ac48bd488eac4eddbec, type: 3}
+  - EventWindow: {fileID: 7730969418083207674, guid: a87de94fc6afc054e9e481612f7181f2, type: 3}
   - EventTitleText: {fileID: 8791144618594378723, guid: 8127e4f3d9d6e824793a12330468dadf, type: 3}
   - PlaceText: {fileID: 8460566992865643650, guid: 2f69b63309d1dab4f9cc6ebaf97b1ea2, type: 3}
   - ContextText: {fileID: 314423588503119845, guid: a87de94fc6afc054e9e481612f7181f2, type: 3}
