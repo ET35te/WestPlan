@@ -140,7 +140,7 @@ public class UIManager : MonoBehaviour
         if (currentEvent.IsPeaceful == false)
         {
             SwitchState(UIState.Battle);
-            BattleManager.Instance.StartBattle(currentEvent);
+            NewBattleManager.Instance.StartBattle(currentEvent);
         }
         else
         {
