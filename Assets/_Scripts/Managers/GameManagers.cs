@@ -31,6 +31,7 @@ public class GameManager : MonoBehaviour
     {
         // 游戏开始时的初始化
         CurrentTimer = TimeLimitPerNode;
+        IsTimerRunning = true;
     }
 
     void Update()
