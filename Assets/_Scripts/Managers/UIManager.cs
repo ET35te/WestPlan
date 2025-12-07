@@ -62,12 +62,26 @@ public class UIManager : MonoBehaviour
     private DataManager.EventData currentEvent;
     private UIState currentState;
 
-    private void Awake()
+private void Awake()
     {
-        if (Instance != null && Instance != this) Destroy(gameObject);
-        else { Instance = this; } 
-    }
+        // 1. 简单的单例保护
+        if (Instance != null && Instance != this) 
+        {
+            Destroy(gameObject);
+        }
+        else 
+        { 
+            Instance = this; 
+            // 2. 暂时注释掉下面这行！
+            // 为了防止开发时出现奇奇怪怪的问题，我们先不让它跨场景，反正目前只有一个场景。
+            // DontDestroyOnLoad(gameObject); 
+        }
 
+        // 👇👇👇 重点：下面什么都不要写！ 👇👇👇
+        // 不要写 GameObject.Find
+        // 不要写 GetComponent
+        // 相信你自己在 Inspector 里拖拽的引用！
+    }
     void Start()
     {
         StartBtn.onClick.AddListener(OnClickStartGame);

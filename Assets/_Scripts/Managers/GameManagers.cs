@@ -21,12 +21,26 @@ public class GameManager : MonoBehaviour
     public float CurrentTimer;
     public bool IsTimerRunning = false;
 
-    private void Awake()
+private void Awake()
     {
-        if (Instance != null && Instance != this) Destroy(this.gameObject);
-        else { Instance = this; DontDestroyOnLoad(this.gameObject); }
-    }
+        // --- 👇 追踪代码 开始 👇 ---
+        Debug.Log($"【侦探】GameManager 启动了！" +
+                  $"名字: {gameObject.name} | " +
+                  $"ID: {gameObject.GetInstanceID()} | " +
+                  $"场景: {gameObject.scene.name}");
+        // --- 👆 追踪代码 结束 👆 ---
 
+        if (Instance != null && Instance != this) 
+        {
+            Debug.LogError($"【侦探】发现重复！我是冒牌货 ({gameObject.name})，我要自杀，原来的老大ID是: {Instance.gameObject.GetInstanceID()}");
+            Destroy(this.gameObject);
+        }
+        else 
+        { 
+            Instance = this; 
+            // DontDestroyOnLoad(this.gameObject); // 暂时注释
+        }
+    }
     void Start()
     {
         // 游戏开始时的初始化
