@@ -136,6 +136,7 @@ GameObject:
   - component: {fileID: 275816632}
   - component: {fileID: 275816631}
   - component: {fileID: 275816630}
+  - component: {fileID: 275816636}
   m_Layer: 0
   m_Name: _GameManager_New
   m_TagString: Untagged
@@ -214,8 +215,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea5d9ee180de8244ea2d379f2fb9a205, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MainMenuPanel: {fileID: 5526899814661638700, guid: 70632ad13227d0846a4cdd0775f67d3f, type: 3}
-  GameplayPanel: {fileID: 5689657582337245519, guid: e91f373e3b803a3458392b2a26932f4f, type: 3}
+  MainMenuPanel: {fileID: 944932968880678551}
+  GameplayPanel: {fileID: 5829296281439463386}
   ResultPanel: {fileID: 1718215217796382721, guid: f701731bc4ae44b46a2401f09ef6c4cf, type: 3}
   AchievementPanel: {fileID: 7148825551988405275, guid: 152ee9fa934ce274aa14a0f64923a267, type: 3}
   NodeSummaryPanel: {fileID: 8996777261849217489, guid: 4371fb290bd354c4b97a7e2cd8118bf6, type: 3}
@@ -315,6 +316,184 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &275816636
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 275816629}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb40e7d08f0d34a4ab14488ea13a2215, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  AllEvents:
+  - ID: 0
+    IsPeaceful: 0
+    Title: 
+    Context: 
+    OptA_Text: 
+    OptA_Res1_Txt: 
+    OptA_Res1_ID: 0
+    OptA_Res1_Val: 0
+    OptA_Res2_Rate: 0
+    OptA_Res2_Txt: 
+    OptA_Res2_ID: 0
+    OptA_Res2_Val: 0
+    OptB_Text: 
+    OptB_Res1_Txt: 
+    OptB_Res1_ID: 0
+    OptB_Res1_Val: 0
+    OptB_Res2_Rate: 0
+    OptB_Res2_Txt: 
+    OptB_Res2_ID: 0
+    OptB_Res2_Val: 0
+  AllBattleCards:
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
+  - ID: 0
+    Name: 
+    Type: 
+    Description: 
+    Cond_ResID: 0
+    Cond_Val: 0
+    Sacrifice_Cost: 0
+    Buff_Type: 
+    Buff_Val: 0
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -1456,7 +1635,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 6903261109709901024}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 275816632}
+        m_TargetAssemblyTypeName: UIManager, Assembly-CSharp
+        m_MethodName: OnClickReturnToTitle
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &751965697401926287
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -5767,7 +5958,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 2595001436863455253}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 275816632}
+        m_TargetAssemblyTypeName: UIManager, Assembly-CSharp
+        m_MethodName: OnClickStartGame
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &3397668677137173291
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -8072,7 +8275,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Button
+  m_text: Start
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -11980,7 +12183,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 4379473780818014274}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 275816632}
+        m_TargetAssemblyTypeName: UIManager, Assembly-CSharp
+        m_MethodName: OnClickQuitGame
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!1 &7411138145572187725
 GameObject:
   m_ObjectHideFlags: 0

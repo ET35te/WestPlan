@@ -125,14 +125,14 @@ private void Awake()
         }
     }
 
-    void OnClickStartGame()
+    public void OnClickStartGame()
     {
         SwitchState(UIState.Gameplay);
         UpdateResourceDisplay();
         ShowNextEvent(); 
     }
 
-    void OnClickQuitGame()
+    public void OnClickQuitGame()
     {
         #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
@@ -149,6 +149,7 @@ private void Awake()
     public void ShowNextEvent()
     {
         // 1. 尝试获取事件
+        Debug.Log ("正在尝试获取随机事件");
         currentEvent = DataManager.Instance.GetRandomEvent();
         
         // 【调试关键点】如果没有读到事件，打印错误
