@@ -166,7 +166,7 @@ private void Awake()
         {
             // --- 战斗逻辑 ---
             SwitchState(UIState.Battle); // 切换到战斗UI层级
-            
+            Debug.Log($"尝试显示的剧情文本是：[{currentEvent.Context}]");
             // 确保这里呼叫的是 NewBattleManager
             if (NewBattleManager.Instance != null)
             {

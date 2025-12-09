@@ -217,20 +217,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   MainMenuPanel: {fileID: 944932968880678551}
   GameplayPanel: {fileID: 5829296281439463386}
-  ResultPanel: {fileID: 1718215217796382721, guid: f701731bc4ae44b46a2401f09ef6c4cf, type: 3}
-  AchievementPanel: {fileID: 7148825551988405275, guid: 152ee9fa934ce274aa14a0f64923a267, type: 3}
-  NodeSummaryPanel: {fileID: 8996777261849217489, guid: 4371fb290bd354c4b97a7e2cd8118bf6, type: 3}
-  BattlePanel: {fileID: 501861932468147514, guid: 4f7a492e2cec71848b8393f6309c9ec9, type: 3}
-  HUDLayer: {fileID: 4699946459842543791, guid: 293ed19e209f83a429b0ad9008099d64, type: 3}
-  EndingLayer: {fileID: 1664396014831464753, guid: 8244a0856990ffb4d89876152dacd9ec, type: 3}
-  TitleText: {fileID: 2320057360032225067, guid: 373ea0175d600a94e85ae0b8a1a4cd74, type: 3}
+  ResultPanel: {fileID: 7214326781431833834}
+  AchievementPanel: {fileID: 4481544594941870654}
+  NodeSummaryPanel: {fileID: 2196476075017694925}
+  BattlePanel: {fileID: 2427984673357307603}
+  HUDLayer: {fileID: 4656063016610247622}
+  EndingLayer: {fileID: 6080906939661175114}
+  TitleText: {fileID: 6330085550803023032}
   StartBtn: {fileID: 3906866077775394324, guid: adc37997678e154438d8ae092f418a0b, type: 3}
   QuitBtn: {fileID: 6171527294069420620, guid: df2611510904087458d6b937b14fa98b, type: 3}
   AchievementBtn: {fileID: 1739949309191489185, guid: 6780dd06e6a689b4fb8f8cd9ed1471ab, type: 3}
-  EventWindow: {fileID: 119788263152816869, guid: 890adb1e719750548b32af401ae17e44, type: 3}
-  EventTitleText: {fileID: 7027388888220477702, guid: 746ffd9aa38732146812035b1c01e2f3, type: 3}
-  PlaceText: {fileID: 5697017168303099310, guid: 451978db5382e8243a6083758ed45a38, type: 3}
-  ContextText: {fileID: 1537259523126491325, guid: 656961fffde6eff49aa604e3f0b5adc6, type: 3}
+  EventWindow: {fileID: 8277351009397595186}
+  EventTitleText: {fileID: 2397602063070357565}
+  PlaceText: {fileID: 2798713907466309878}
+  ContextText: {fileID: 4060038109056173586}
   ButtonA: {fileID: 4561051200817440084, guid: 8278b99478be5554d9e1613d39025e01, type: 3}
   ButtonB: {fileID: 5537102171673400644, guid: d08af551b7c8b614fa1ec582777a9cf1, type: 3}
   ResultText: {fileID: 1753483654968039940, guid: 3d806c15ba1d73d4e83b335a4773b621, type: 3}
@@ -711,7 +711,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 6f32c5bba77c26649bb768e887bda5ec, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 3f529216131fc4a44a66b735b10d5360, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -811,7 +811,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: 21300000, guid: 6f32c5bba77c26649bb768e887bda5ec, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -8473,8 +8473,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 160, y: 30}
+  m_AnchoredPosition: {x: 735, y: 398}
+  m_SizeDelta: {x: 160, y: -76.4095}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &5149105241468338837
 RectTransform:
@@ -8741,7 +8741,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: 21300000, guid: 3f529216131fc4a44a66b735b10d5360, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -9894,7 +9894,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: 21300000, guid: 3f529216131fc4a44a66b735b10d5360, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
