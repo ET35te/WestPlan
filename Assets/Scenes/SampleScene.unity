@@ -177,32 +177,32 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Lanes:
-  - Name: 
-    EnemyIntent: 0
-    PlayerCommand: 0
-    UI_Reference: {fileID: 1823514218892436832, guid: b63457f1d44a3a64da3fe60a1c3f914f, type: 3}
-  - Name: 
-    EnemyIntent: 0
-    PlayerCommand: 0
-    UI_Reference: {fileID: 5302197621761915513, guid: 4f4c16052422f8746be6990c38efe845, type: 3}
-  - Name: 
-    EnemyIntent: 0
-    PlayerCommand: 0
-    UI_Reference: {fileID: 1206042366741856792, guid: e1324375cbad41749aa41abce38a9cab, type: 3}
-  - Name: 
-    EnemyIntent: 0
-    PlayerCommand: 0
-    UI_Reference: {fileID: 1786521891703993973, guid: 23d635e1bbf08134ca05554d1e32aa95, type: 3}
-  - Name: 
-    EnemyIntent: 0
-    PlayerCommand: 0
-    UI_Reference: {fileID: 5924889986973398052, guid: bb3279e1c3d12824aa6360c049603be1, type: 3}
+  - Name: "\u5DE6\u519B"
+    EnemyIntent: 1
+    PlayerCommand: 1
+    UI_Reference: {fileID: 411281117551424091}
+  - Name: "\u524D\u519B"
+    EnemyIntent: 2
+    PlayerCommand: 1
+    UI_Reference: {fileID: 3008709278155193913}
+  - Name: "\u4E2D\u519B"
+    EnemyIntent: 2
+    PlayerCommand: 1
+    UI_Reference: {fileID: 5290730379729643966}
+  - Name: "\u540E\u519B"
+    EnemyIntent: 1
+    PlayerCommand: 2
+    UI_Reference: {fileID: 596442444335999162}
+  - Name: "\u53F3\u519B"
+    EnemyIntent: 1
+    PlayerCommand: 1
+    UI_Reference: {fileID: 3436932201351085041}
   MaxActionPoints: 3
   CurrentActionPoints: 0
-  BattlePanel: {fileID: 501861932468147514, guid: 4f7a492e2cec71848b8393f6309c9ec9, type: 3}
-  AP_Text: {fileID: 0}
-  ExecuteBtn: {fileID: 8400061843781868769, guid: 2186e03e9b968b145aeb74abe79e9a99, type: 3}
-  BattleLogText: {fileID: 0}
+  BattlePanel: {fileID: 2427984673357307603}
+  AP_Text: {fileID: 4179713765150747246}
+  ExecuteBtn: {fileID: 6711430722301456681}
+  BattleLogText: {fileID: 3000867396640920121}
 --- !u!114 &275816632
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -231,8 +231,8 @@ MonoBehaviour:
   EventTitleText: {fileID: 2397602063070357565}
   PlaceText: {fileID: 2798713907466309878}
   ContextText: {fileID: 4060038109056173586}
-  ButtonA: {fileID: 4561051200817440084, guid: 8278b99478be5554d9e1613d39025e01, type: 3}
-  ButtonB: {fileID: 5537102171673400644, guid: d08af551b7c8b614fa1ec582777a9cf1, type: 3}
+  ButtonA: {fileID: 5871119112597032030}
+  ButtonB: {fileID: 894073789379689062}
   ResultText: {fileID: 1753483654968039940, guid: 3d806c15ba1d73d4e83b335a4773b621, type: 3}
   ConfirmResultBtn: {fileID: 3478631221555446466, guid: 977c1edcb5eb1a94e95337356fa4959a, type: 3}
   SummaryTitleText: {fileID: 8617654134457304500, guid: 35e23c0120c81fe4b8946e8d4b4d4860, type: 3}
@@ -750,7 +750,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 55.20331, y: 17.845825}
+  m_AnchoredPosition: {x: 55.20337, y: 17.845825}
   m_SizeDelta: {x: -421.141, y: -302.8044}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &30725863291486523
@@ -1123,11 +1123,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 55025568e6b459548b19e1d69ed66303, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  LaneNameText: {fileID: 0}
-  EnemyIntentIcon: {fileID: 0}
-  PlayerCommandBtn: {fileID: 0}
-  CommandText: {fileID: 0}
-  ResultText: {fileID: 0}
+  LaneNameText: {fileID: 3128293015482601218}
+  EnemyIntentIcon: {fileID: 7100507514848758779}
+  PlayerCommandBtn: {fileID: 7487363072246023765}
+  CommandText: {fileID: 3920090961378050877}
+  ResultText: {fileID: 5744513133646214110}
   Icon_Attack: {fileID: 0}
   Icon_Defend: {fileID: 0}
   Icon_Empty: {fileID: 0}
@@ -1361,11 +1361,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 55025568e6b459548b19e1d69ed66303, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  LaneNameText: {fileID: 0}
-  EnemyIntentIcon: {fileID: 0}
-  PlayerCommandBtn: {fileID: 0}
-  CommandText: {fileID: 0}
-  ResultText: {fileID: 0}
+  LaneNameText: {fileID: 1603499852399776456}
+  EnemyIntentIcon: {fileID: 8452306998397710597}
+  PlayerCommandBtn: {fileID: 1287201161753040714}
+  CommandText: {fileID: 7250991298778076102}
+  ResultText: {fileID: 5516066193796135360}
   Icon_Attack: {fileID: 0}
   Icon_Defend: {fileID: 0}
   Icon_Empty: {fileID: 0}
@@ -5340,11 +5340,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 55025568e6b459548b19e1d69ed66303, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  LaneNameText: {fileID: 0}
-  EnemyIntentIcon: {fileID: 0}
-  PlayerCommandBtn: {fileID: 0}
-  CommandText: {fileID: 0}
-  ResultText: {fileID: 0}
+  LaneNameText: {fileID: 5731927324159808403}
+  EnemyIntentIcon: {fileID: 7398061744055689091}
+  PlayerCommandBtn: {fileID: 2468479356781698487}
+  CommandText: {fileID: 4142215245475015992}
+  ResultText: {fileID: 1036830653511595737}
   Icon_Attack: {fileID: 0}
   Icon_Defend: {fileID: 0}
   Icon_Empty: {fileID: 0}
@@ -6047,11 +6047,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 55025568e6b459548b19e1d69ed66303, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  LaneNameText: {fileID: 0}
-  EnemyIntentIcon: {fileID: 0}
-  PlayerCommandBtn: {fileID: 0}
-  CommandText: {fileID: 0}
-  ResultText: {fileID: 0}
+  LaneNameText: {fileID: 6100301927469671590}
+  EnemyIntentIcon: {fileID: 7397117652256290036}
+  PlayerCommandBtn: {fileID: 6948856272951944115}
+  CommandText: {fileID: 6481215729385138891}
+  ResultText: {fileID: 3332993262106101041}
   Icon_Attack: {fileID: 0}
   Icon_Defend: {fileID: 0}
   Icon_Empty: {fileID: 0}
@@ -8705,11 +8705,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 55025568e6b459548b19e1d69ed66303, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  LaneNameText: {fileID: 0}
-  EnemyIntentIcon: {fileID: 0}
-  PlayerCommandBtn: {fileID: 0}
-  CommandText: {fileID: 0}
-  ResultText: {fileID: 0}
+  LaneNameText: {fileID: 8475261574891851336}
+  EnemyIntentIcon: {fileID: 5416127228165129815}
+  PlayerCommandBtn: {fileID: 9012424718668260140}
+  CommandText: {fileID: 9053256870322589454}
+  ResultText: {fileID: 5771924293277263289}
   Icon_Attack: {fileID: 0}
   Icon_Defend: {fileID: 0}
   Icon_Empty: {fileID: 0}
@@ -10858,7 +10858,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.000061035156, y: -184.99997}
+  m_AnchoredPosition: {x: 0, y: -185}
   m_SizeDelta: {x: 0, y: -185}
   m_Pivot: {x: 0.5, y: 1}
 --- !u!114 &6481215729385138891
@@ -14407,10 +14407,10 @@ RectTransform:
   - {fileID: 3168958109617152911}
   m_Father: {fileID: 8294486169136110418}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &9197205904797675474
 GameObject:
