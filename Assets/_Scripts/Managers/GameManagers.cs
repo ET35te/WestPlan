@@ -114,50 +114,74 @@ public class GameManager : MonoBehaviour
     // --- 事件判定逻辑 (保留原有，不重复发) ---
     public string ResolveEventOption(DataManager.EventData evt, bool chooseA)
     {
-        // ... (请保留之前的掷骰子和扣资源代码) ...
-        // 记得在最后返回前，调用 HandleEventEffect(evt.Effect_Type);
-        // 这里只是示意，具体看 UIManager 调用逻辑，或者在这里加一句：
-        // if (chooseA == true && !string.IsNullOrEmpty(evt.Effect_Type)) HandleEventEffect(evt.Effect_Type);
-        // 通常 Effect 是绑定在事件结束后的，这里简化处理，假设选了特定选项才触发，或者事件本身带有全局效果
-        
-        // 为了简单，我们规定：只要事件结算了，就触发 Effect (如果存在)
-        HandleEventEffect(evt.Effect_Type); 
-
-        // 这里把之前的代码复制过来...
         string baseResultText = "";
-        string finalResultText = "";
-        int resID = 0;
-        int resVal = 0;
+        string dataString = ""; // 存那个 "101:10;102:-5" 字符串
 
+        // 1. 判定概率
         int rate2 = chooseA ? evt.OptA_Res2_Rate : evt.OptB_Res2_Rate;
         int roll = Random.Range(0, 100);
-        bool triggerResult2 = roll < rate2; 
+        bool triggerResult2 = roll < rate2;
 
         if (triggerResult2)
         {
             baseResultText = chooseA ? evt.OptA_Res2_Txt : evt.OptB_Res2_Txt;
-            resID = chooseA ? evt.OptA_Res2_ID : evt.OptB_Res2_ID;
-            resVal = chooseA ? evt.OptA_Res2_Val : evt.OptB_Res2_Val;
+            dataString = chooseA ? evt.OptA_Res2_Data : evt.OptB_Res2_Data;
         }
         else
         {
             baseResultText = chooseA ? evt.OptA_Res1_Txt : evt.OptB_Res1_Txt;
-            resID = chooseA ? evt.OptA_Res1_ID : evt.OptB_Res1_ID;
-            resVal = chooseA ? evt.OptA_Res1_Val : evt.OptB_Res1_Val;
+            dataString = chooseA ? evt.OptA_Res1_Data : evt.OptB_Res1_Data;
         }
 
-        if (resVal != 0) ResourceManager.Instance.ChangeResource(resID, resVal);
+        // 2. 解析字符串并应用资源 + 生成变动文本
+        string changeLog = ApplyMultiResources(dataString);
 
-        if (resVal != 0)
+        // 3. 处理特殊效果
+        HandleEventEffect(evt.Effect_Type);
+
+        // 4. 返回最终文本
+        return baseResultText + changeLog;
+    }
+
+    // --- 核心：多资源解析器 ---
+    // 输入: "101:10;102:-50"
+    // 输出: "\n(信念 +10)\n(粮食 -50)"
+    private string ApplyMultiResources(string dataStr)
+    {
+        if (string.IsNullOrEmpty(dataStr) || dataStr == "0:0") return "";
+
+        string logBuilder = "";
+        
+        // A. 按分号拆分多组数据: ["101:10", "102:-50"]
+        string[] entries = dataStr.Split(';');
+
+        foreach (string entry in entries)
         {
-            string resName = GetResName(resID);
-            string sign = resVal > 0 ? "+" : ""; 
-            string colorHex = resVal > 0 ? "#00FF00" : "#FF4500"; 
-            finalResultText = $"{baseResultText}\n<color={colorHex}>({resName} {sign}{resVal})</color>";
-        }
-        else finalResultText = baseResultText;
+            if (string.IsNullOrWhiteSpace(entry)) continue;
 
-        return finalResultText;
+            // B. 按冒号拆分 ID 和 数值
+            string[] parts = entry.Split(':');
+            if (parts.Length == 2)
+            {
+                int id = int.Parse(parts[0]);
+                int val = int.Parse(parts[1]);
+
+                if (val != 0)
+                {
+                    // 执行变动
+                    ResourceManager.Instance.ChangeResource(id, val);
+
+                    // 拼接显示文本
+                    string resName = GetResName(id);
+                    string sign = val > 0 ? "+" : "";
+                    string colorHex = val > 0 ? "#00FF00" : "#FF4500"; // 绿涨红跌
+                    
+                    logBuilder += $"\n<color={colorHex}>({resName} {sign}{val})</color>";
+                }
+            }
+        }
+
+        return logBuilder;
     }
 
     // --- 💾 存档系统实现 ---

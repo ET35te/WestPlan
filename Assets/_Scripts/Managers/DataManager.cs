@@ -18,22 +18,17 @@ public class DataManager : MonoBehaviour
         // 选项 A
         public string OptA_Text;
         public string OptA_Res1_Txt;
-        public int OptA_Res1_ID;
-        public int OptA_Res1_Val;
+        public string OptA_Res1_Data;
         public int OptA_Res2_Rate;
         public string OptA_Res2_Txt;
-        public int OptA_Res2_ID;
-        public int OptA_Res2_Val;
-
+        public string OptA_Res2_Data;
         // 选项 B
         public string OptB_Text;
         public string OptB_Res1_Txt;
-        public int OptB_Res1_ID;
-        public int OptB_Res1_Val;
+        public string OptB_Res1_Data;
         public int OptB_Res2_Rate;
         public string OptB_Res2_Txt;
-        public int OptB_Res2_ID;
-        public int OptB_Res2_Val;
+        public string OptB_Res2_Data;
 
         // --- NEW! 新增字段 ---
         public string Effect_Type;    // 特殊效果 (SWITCH_ROUTE 等)
@@ -112,32 +107,27 @@ public class DataManager : MonoBehaviour
                 evt.Context = row[3].Replace(";", ",");
 
                 // 选项 A (索引 4-11)
-                evt.OptA_Text = row[4];
+                 evt.OptA_Text = row[4];
                 evt.OptA_Res1_Txt = row[5];
-                evt.OptA_Res1_ID = ParseInt(row[6]);
-                evt.OptA_Res1_Val = ParseInt(row[7]);
-                evt.OptA_Res2_Rate = ParseInt(row[8]);
-                evt.OptA_Res2_Txt = row[9];
-                evt.OptA_Res2_ID = ParseInt(row[10]);
-                evt.OptA_Res2_Val = ParseInt(row[11]);
+                evt.OptA_Res1_Data = row[6]; // 直接读字符串，不用 ParseInt
+                
+                evt.OptA_Res2_Rate = ParseInt(row[7]);
+                evt.OptA_Res2_Txt = row[8];
+                evt.OptA_Res2_Data = row[9]; // 直接读字符串
 
-                // 选项 B (索引 12-19)
-                evt.OptB_Text = row[12];
-                evt.OptB_Res1_Txt = row[13];
-                evt.OptB_Res1_ID = ParseInt(row[14]);
-                evt.OptB_Res1_Val = ParseInt(row[15]);
-                evt.OptB_Res2_Rate = ParseInt(row[16]);
-                evt.OptB_Res2_Txt = row[17];
-                evt.OptB_Res2_ID = ParseInt(row[18]);
-                evt.OptB_Res2_Val = ParseInt(row[19]);
+                // 选项 B (注意索引变化，因为少了列，后面的索引都变了)
+                // 请务必根据你 Excel 实际的列数去数一下索引！
+                // 假设上面合并列后：
+                evt.OptB_Text = row[10];
+                evt.OptB_Res1_Txt = row[11];
+                evt.OptB_Res1_Data = row[12];
+                
+                evt.OptB_Res2_Rate = ParseInt(row[13]);
+                evt.OptB_Res2_Txt = row[14];
+                evt.OptB_Res2_Data = row[15];
 
-                // --- NEW! 读取新字段 (索引 20-21) ---
-                // 做个长度检查，防止旧的CSV报错
-                if (row.Length > 20) evt.Effect_Type = row[20].Trim();
-                else evt.Effect_Type = "";
-
-                if (row.Length > 21) evt.OptB_Condition = row[21].Trim();
-                else evt.OptB_Condition = "";
+                if (row.Length > 16) evt.Effect_Type = row[16].Trim();
+                if (row.Length > 17) evt.OptB_Condition = row[17].Trim();
 
                 AllEvents.Add(evt);
             }
