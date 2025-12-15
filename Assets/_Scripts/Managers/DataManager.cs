@@ -6,12 +6,12 @@ public class DataManager : MonoBehaviour
 {
     public static DataManager Instance { get; private set; }
 
-    // --- 1. 事件数据结构 ---
+    // --- 1. 事件数据结构 (已更新: 22列) ---
     [System.Serializable]
     public class EventData
     {
         public int ID;
-        public bool IsPeaceful; // TRUE=纯剧情, FALSE=触发战斗
+        public bool IsPeaceful; 
         public string Title;
         public string Context;
 
@@ -34,38 +34,57 @@ public class DataManager : MonoBehaviour
         public string OptB_Res2_Txt;
         public int OptB_Res2_ID;
         public int OptB_Res2_Val;
+
+        // --- NEW! 新增字段 ---
+        public string Effect_Type;    // 特殊效果 (SWITCH_ROUTE 等)
+        public string OptB_Condition; // 选项B条件 (104:500)
     }
 
-    // --- 2. 阵法卡数据结构 ---
+    // --- 2. 阵法卡数据结构 (不变) ---
     [System.Serializable]
     public class BattleCardData
     {
         public int ID;
         public string Name;
-        public string Type;          // 火/林/山/风
+        public string Type;
         public string Description;
-        public int Cond_ResID;       // 触发条件的资源ID
-        public int Cond_Val;         // 触发条件的阈值
-        public float Sacrifice_Cost; // 牺牲比例 (0.0 - 1.0)
-        public string Buff_Type;     // 效果类型
-        public float Buff_Val;       // 效果数值
+        public int Cond_ResID;
+        public int Cond_Val;
+        public float Sacrifice_Cost;
+        public string Buff_Type;
+        public float Buff_Val;
     }
 
+    // --- 3. 敌人数据结构 (NEW!) ---
+    [System.Serializable]
+    public class EnemyData
+    {
+        public int ID;
+        public string Name;
+        public int Power;
+        public string Description;
+        public string Intent_Pattern; // 意图模式字符串 (如 "A,D,N,A,N")
+    }
+
+    // --- 数据列表 ---
     public List<EventData> AllEvents = new List<EventData>();
     public List<BattleCardData> AllBattleCards = new List<BattleCardData>();
+    public List<EnemyData> AllEnemies = new List<EnemyData>(); // 新增敌人列表
 
     private void Awake()
     {
         if (Instance != null && Instance != this) Destroy(gameObject);
-        else { Instance = this;}// DontDestroyOnLoad(gameObject)//
+        else { Instance = this; DontDestroyOnLoad(gameObject); }
     }
 
     private void Start()
     {
         LoadEventTable();
         LoadBattleCardTable();
+        LoadEnemyTable(); // 新增加载调用
     }
 
+    // --- 加载事件表 (逻辑更新) ---
     void LoadEventTable()
     {
         TextAsset textAsset = Resources.Load<TextAsset>("Data/EventTable");
@@ -77,21 +96,22 @@ public class DataManager : MonoBehaviour
         for (int i = 1; i < lines.Length; i++)
         {
             string[] row = lines[i].Split(',');
-            if (row.Length < 2) continue; // 简单防错
+            
+            // 注意：现在我们期望至少有 22 列数据 (如果不够，可能是Excel没填完整，我们做个兼容)
+            if (row.Length < 2) continue; 
 
             try 
             {
                 EventData evt = new EventData();
                 evt.ID = ParseInt(row[0]);
                 
-                // 解析 IsPeaceful
                 string peaceStr = row[1].ToUpper().Trim();
                 evt.IsPeaceful = (peaceStr == "TRUE" || peaceStr == "1");
 
                 evt.Title = row[2];
                 evt.Context = row[3].Replace(";", ",");
 
-                // 选项 A (索引从4开始)
+                // 选项 A (索引 4-11)
                 evt.OptA_Text = row[4];
                 evt.OptA_Res1_Txt = row[5];
                 evt.OptA_Res1_ID = ParseInt(row[6]);
@@ -101,7 +121,7 @@ public class DataManager : MonoBehaviour
                 evt.OptA_Res2_ID = ParseInt(row[10]);
                 evt.OptA_Res2_Val = ParseInt(row[11]);
 
-                // 选项 B (索引从12开始)
+                // 选项 B (索引 12-19)
                 evt.OptB_Text = row[12];
                 evt.OptB_Res1_Txt = row[13];
                 evt.OptB_Res1_ID = ParseInt(row[14]);
@@ -111,6 +131,14 @@ public class DataManager : MonoBehaviour
                 evt.OptB_Res2_ID = ParseInt(row[18]);
                 evt.OptB_Res2_Val = ParseInt(row[19]);
 
+                // --- NEW! 读取新字段 (索引 20-21) ---
+                // 做个长度检查，防止旧的CSV报错
+                if (row.Length > 20) evt.Effect_Type = row[20].Trim();
+                else evt.Effect_Type = "";
+
+                if (row.Length > 21) evt.OptB_Condition = row[21].Trim();
+                else evt.OptB_Condition = "";
+
                 AllEvents.Add(evt);
             }
             catch (Exception e) { Debug.LogError($"事件表第 {i} 行错误: {e.Message}"); }
@@ -118,6 +146,42 @@ public class DataManager : MonoBehaviour
         Debug.Log($"【数据】加载了 {AllEvents.Count} 个事件。");
     }
 
+    // --- 加载敌人表 (NEW!) ---
+    void LoadEnemyTable()
+    {
+        TextAsset textAsset = Resources.Load<TextAsset>("Data/EnemyTable");
+        if (textAsset == null) 
+        { 
+            // 如果还没建表，先不报错，只打印警告，避免卡死
+            Debug.LogWarning("未找到 Data/EnemyTable，战斗系统将无法读取敌人配置。"); 
+            return; 
+        }
+
+        string[] lines = textAsset.text.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+        AllEnemies.Clear();
+
+        for (int i = 1; i < lines.Length; i++)
+        {
+            string[] row = lines[i].Split(',');
+            if (row.Length < 5) continue;
+
+            try
+            {
+                EnemyData enemy = new EnemyData();
+                enemy.ID = ParseInt(row[0]);
+                enemy.Name = row[1];
+                enemy.Power = ParseInt(row[2]);
+                enemy.Description = row[3].Replace(";", ",");
+                enemy.Intent_Pattern = row[4];
+
+                AllEnemies.Add(enemy);
+            }
+            catch (Exception e) { Debug.LogError($"敌人表第 {i} 行错误: {e.Message}"); }
+        }
+        Debug.Log($"【数据】加载了 {AllEnemies.Count} 个敌人配置。");
+    }
+
+    // --- 加载阵法卡表 (保持不变) ---
     void LoadBattleCardTable()
     {
         TextAsset textAsset = Resources.Load<TextAsset>("Data/BattleCardTable");
@@ -151,6 +215,7 @@ public class DataManager : MonoBehaviour
         Debug.Log($"【数据】加载了 {AllBattleCards.Count} 张阵法卡。");
     }
 
+    // --- 辅助方法 ---
     int ParseInt(string str)
     {
         if (string.IsNullOrEmpty(str)) return 0;
@@ -173,5 +238,11 @@ public class DataManager : MonoBehaviour
             drawn.Add(AllBattleCards[UnityEngine.Random.Range(0, AllBattleCards.Count)]);
         }
         return drawn;
+    }
+    
+    // 获取特定敌人数据的辅助方法 (供 BattleManager 使用)
+    public EnemyData GetEnemyByID(int id)
+    {
+        return AllEnemies.Find(e => e.ID == id);
     }
 }

@@ -2,133 +2,238 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    [Header("--- 游戏进度配置 ---")]
-    // 史实路线节点名称
+    [Header("--- 游戏进度 ---")]
     public string[] Nodes_Historical = { "玉门关", "白龙堆", "楼兰", "龟兹", "疏勒", "天山", "车师", "高昌", "敦煌", "长安", "洛阳", "终焉" }; 
-    // 幻想路线节点名称
     public string[] Nodes_Fantasy = { "玉门关", "若羌", "且末", "于阗", "莎车", "葱岭", "大宛", "康居", "北匈奴", "单于庭", "封狼居胥", "终焉" };
     
-    public int CurrentNodeIndex = 0; // 当前第几站
-    public int CurrentMonth = 1;     // 当前月份
-    public bool IsFantasyLine = false; // 是否进入幻想线
+    public int CurrentNodeIndex = 0; 
+    public int CurrentMonth = 1;     
+    public bool IsFantasyLine = false; // 路线标记
 
     [Header("--- 时间控制 ---")]
-    public float TimeLimitPerNode = 60f; // 每个节点(月)现实时间 60秒
+    public float TimeLimitPerNode = 60f; 
     public float CurrentTimer;
     public bool IsTimerRunning = false;
 
-private void Awake()
+    private void Awake()
     {
-        // --- 👇 追踪代码 开始 👇 ---
-        Debug.Log($"【侦探】GameManager 启动了！" +
-                  $"名字: {gameObject.name} | " +
-                  $"ID: {gameObject.GetInstanceID()} | " +
-                  $"场景: {gameObject.scene.name}");
-        // --- 👆 追踪代码 结束 👆 ---
-
-        if (Instance != null && Instance != this) 
-        {
-            Debug.LogError($"【侦探】发现重复！我是冒牌货 ({gameObject.name})，我要自杀，原来的老大ID是: {Instance.gameObject.GetInstanceID()}");
-            Destroy(this.gameObject);
-        }
-        else 
-        { 
-            Instance = this; 
-            // DontDestroyOnLoad(this.gameObject); // 暂时注释
-        }
+        if (Instance != null && Instance != this) Destroy(this.gameObject);
+        else { Instance = this; DontDestroyOnLoad(this.gameObject); }
     }
+
     void Start()
     {
-        // 游戏开始时的初始化
-        CurrentTimer = TimeLimitPerNode;
-        IsTimerRunning = true;
+        // 游戏启动时不自动开始，等待点击“开始”或“继续”
+        IsTimerRunning = false;
     }
 
     void Update()
     {
-        // 倒计时逻辑：只有在 Gameplay 状态下才倒计时
         if (IsTimerRunning)
         {
             CurrentTimer -= Time.deltaTime;
-            
-            // TODO: 这里可以调用 UI 更新倒计时显示文本
-            // UIManager.Instance.UpdateTimerText(CurrentTimer);
-
-            if (CurrentTimer <= 0)
-            {
-                TriggerSettlement(); // 时间到，强制结算
-            }
+            if (CurrentTimer <= 0) TriggerSettlement(); 
         }
     }
 
-    // --- 核心流程 1: 触发节点结算 ---
+    // --- 核心流程：节点结算与存档 ---
     public void TriggerSettlement()
     {
-        IsTimerRunning = false; // 暂停时间
+        IsTimerRunning = false; 
         
-        // 1. 判断是否大结局 (第12月)
-        if (CurrentMonth >= 12)
-        {
-            UIManager.Instance.SwitchState(UIManager.UIState.Ending);
-            return;
-        }
+        if (CurrentMonth >= 12) { TriggerEnding("Victory_Time"); return; }
 
-        // 2. 正常结算
-        // 计算本月总结文案 (这里先写死，后续可根据表现生成)
         string summaryTitle = $"大汉建初元年 - {CurrentMonth}月";
-        string summaryContent = $"本月行军至{GetCurrentNodeName()}。\n粮草消耗正常，士气尚可。\n(此处可扩展更多随机总结)";
+        string place = GetCurrentNodeName();
+        string summaryContent = $"全军抵达{place}。\n整备物资，等待下一次行动。";
 
         UIManager.Instance.ShowNodeSummary(summaryTitle, summaryContent);
         
-        // 这里可以执行自动存档 SaveGame();
+        // --- 💾 周日思考：节点自动存档 ---
+        SaveGame();
     }
 
-    // --- 核心流程 2: 前往下一站 ---
-    // 由 NodeSummary 面板的“继续”按钮调用
     public void GoToNextNode()
     {
         CurrentMonth++;
-        
-        // 移动到下一个地名，防止数组越界
-        if (CurrentNodeIndex < Nodes_Historical.Length - 1) 
-            CurrentNodeIndex++;
+        if (CurrentNodeIndex < Nodes_Historical.Length - 1) CurrentNodeIndex++;
 
-        // 重置时间
         CurrentTimer = TimeLimitPerNode;
         IsTimerRunning = true;
 
-        // 更新 UI 上的地名显示
         UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
-
-        // 回到游玩界面
         UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
-        
-        // 立即触发一个新事件
         UIManager.Instance.ShowNextEvent();
     }
 
-    // 获取当前地名
-    public string GetCurrentNodeName()
+    // --- 💀 周日思考：结局/死亡 ---
+    public void TriggerEnding(string endingType)
     {
-        if (IsFantasyLine)
-            return Nodes_Fantasy[Mathf.Clamp(CurrentNodeIndex, 0, Nodes_Fantasy.Length-1)];
-        else
-            return Nodes_Historical[Mathf.Clamp(CurrentNodeIndex, 0, Nodes_Historical.Length-1)];
+        IsTimerRunning = false;
+        string endText = "";
+        
+        // 根据结局类型显示不同文案 (后续可扩展)
+        if (endingType == "Death_Belief") endText = "军心涣散，再无力西进。\n你倒在了黄沙之中...";
+        else if (endingType == "Victory_Time") endText = "历经十二载，终于完成了使命！";
+        else endText = "旅途终结。";
+
+        // 清空存档，防止死档循环
+        PlayerPrefs.DeleteKey("HasSave"); 
+        
+        UIManager.Instance.ShowEnding(endText);
     }
 
-    // --- 事件判定逻辑 (保留之前的) ---
+    // --- 📝 周二任务：特殊效果处理 ---
+    // 在 UIManager 点击选项后调用这个，处理 Effect_Type
+    public void HandleEventEffect(string effectType)
+    {
+        if (string.IsNullOrEmpty(effectType)) return;
+
+        Debug.Log($"触发特殊效果: {effectType}");
+
+        switch (effectType)
+        {
+            case "SWITCH_ROUTE_FANTASY":
+                IsFantasyLine = true;
+                Debug.Log(">>> 进入幻想线！ <<<");
+                break;
+            case "GAME_OVER":
+                TriggerEnding("Bad_End_Event");
+                break;
+            case "VICTORY":
+                TriggerEnding("Victory_Event");
+                break;
+        }
+    }
+
+    // --- 事件判定逻辑 (保留原有，不重复发) ---
     public string ResolveEventOption(DataManager.EventData evt, bool chooseA)
     {
-        // ... (保留你之前的 ResolveEventOption 代码，这里为了篇幅省略，请把之前的逻辑贴回来) ...
-        // 如果找不到之前的代码，告诉我，我再发一遍完整版
-        return "事件结果..."; // 占位
+        // ... (请保留之前的掷骰子和扣资源代码) ...
+        // 记得在最后返回前，调用 HandleEventEffect(evt.Effect_Type);
+        // 这里只是示意，具体看 UIManager 调用逻辑，或者在这里加一句：
+        // if (chooseA == true && !string.IsNullOrEmpty(evt.Effect_Type)) HandleEventEffect(evt.Effect_Type);
+        // 通常 Effect 是绑定在事件结束后的，这里简化处理，假设选了特定选项才触发，或者事件本身带有全局效果
+        
+        // 为了简单，我们规定：只要事件结算了，就触发 Effect (如果存在)
+        HandleEventEffect(evt.Effect_Type); 
+
+        // 这里把之前的代码复制过来...
+        string baseResultText = "";
+        string finalResultText = "";
+        int resID = 0;
+        int resVal = 0;
+
+        int rate2 = chooseA ? evt.OptA_Res2_Rate : evt.OptB_Res2_Rate;
+        int roll = Random.Range(0, 100);
+        bool triggerResult2 = roll < rate2; 
+
+        if (triggerResult2)
+        {
+            baseResultText = chooseA ? evt.OptA_Res2_Txt : evt.OptB_Res2_Txt;
+            resID = chooseA ? evt.OptA_Res2_ID : evt.OptB_Res2_ID;
+            resVal = chooseA ? evt.OptA_Res2_Val : evt.OptB_Res2_Val;
+        }
+        else
+        {
+            baseResultText = chooseA ? evt.OptA_Res1_Txt : evt.OptB_Res1_Txt;
+            resID = chooseA ? evt.OptA_Res1_ID : evt.OptB_Res1_ID;
+            resVal = chooseA ? evt.OptA_Res1_Val : evt.OptB_Res1_Val;
+        }
+
+        if (resVal != 0) ResourceManager.Instance.ChangeResource(resID, resVal);
+
+        if (resVal != 0)
+        {
+            string resName = GetResName(resID);
+            string sign = resVal > 0 ? "+" : ""; 
+            string colorHex = resVal > 0 ? "#00FF00" : "#FF4500"; 
+            finalResultText = $"{baseResultText}\n<color={colorHex}>({resName} {sign}{resVal})</color>";
+        }
+        else finalResultText = baseResultText;
+
+        return finalResultText;
     }
-    
-    // --- 辅助：获取资源名 (保留之前的) ---
+
+    // --- 💾 存档系统实现 ---
+    public void SaveGame()
+    {
+        PlayerPrefs.SetInt("Saved_Belief", ResourceManager.Instance.Belief);
+        PlayerPrefs.SetInt("Saved_Grain", ResourceManager.Instance.Grain);
+        // ... 保存其他资源 (Water, Troops, Money, Horses, Armor)
+        PlayerPrefs.SetInt("Saved_Water", ResourceManager.Instance.Water);
+        PlayerPrefs.SetInt("Saved_Troops", ResourceManager.Instance.Troops);
+        PlayerPrefs.SetInt("Saved_Money", ResourceManager.Instance.Money);
+        PlayerPrefs.SetInt("Saved_Horses", ResourceManager.Instance.Horses);
+        PlayerPrefs.SetInt("Saved_Armor", ResourceManager.Instance.Armor);
+
+        PlayerPrefs.SetInt("Saved_Month", CurrentMonth);
+        PlayerPrefs.SetInt("Saved_NodeIndex", CurrentNodeIndex);
+        PlayerPrefs.SetInt("Saved_IsFantasy", IsFantasyLine ? 1 : 0);
+        
+        PlayerPrefs.SetInt("HasSave", 1); // 标记有存档
+        PlayerPrefs.Save();
+        Debug.Log("【系统】游戏已保存");
+    }
+
+    public void LoadGame()
+    {
+        if (!PlayerPrefs.HasKey("HasSave")) return;
+
+        ResourceManager.Instance.Belief = PlayerPrefs.GetInt("Saved_Belief");
+        ResourceManager.Instance.Grain = PlayerPrefs.GetInt("Saved_Grain");
+        // ... 读取其他资源
+        ResourceManager.Instance.Water = PlayerPrefs.GetInt("Saved_Water");
+        ResourceManager.Instance.Troops = PlayerPrefs.GetInt("Saved_Troops");
+        ResourceManager.Instance.Money = PlayerPrefs.GetInt("Saved_Money");
+        ResourceManager.Instance.Horses = PlayerPrefs.GetInt("Saved_Horses");
+        ResourceManager.Instance.Armor = PlayerPrefs.GetInt("Saved_Armor");
+
+        CurrentMonth = PlayerPrefs.GetInt("Saved_Month");
+        CurrentNodeIndex = PlayerPrefs.GetInt("Saved_NodeIndex");
+        IsFantasyLine = PlayerPrefs.GetInt("Saved_IsFantasy") == 1;
+
+        // 恢复状态
+        UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
+        CurrentTimer = TimeLimitPerNode;
+        IsTimerRunning = true;
+        
+        UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
+        UIManager.Instance.UpdateResourceDisplay();
+        Debug.Log("【系统】存档已读取");
+    }
+
+    public void StartNewGame()
+    {
+        PlayerPrefs.DeleteAll(); // 清除旧存档
+        // 重置资源 (这里简单写，你可以封装 Reset 方法)
+        ResourceManager.Instance.Belief = 80;
+        ResourceManager.Instance.Grain = 100;
+        // ...
+        
+        CurrentMonth = 1;
+        CurrentNodeIndex = 0;
+        IsFantasyLine = false;
+        
+        CurrentTimer = TimeLimitPerNode;
+        IsTimerRunning = true;
+        
+        UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
+        UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
+        UIManager.Instance.ShowNextEvent();
+    }
+
+    public string GetCurrentNodeName()
+    {
+        if (IsFantasyLine) return Nodes_Fantasy[Mathf.Clamp(CurrentNodeIndex, 0, Nodes_Fantasy.Length-1)];
+        else return Nodes_Historical[Mathf.Clamp(CurrentNodeIndex, 0, Nodes_Historical.Length-1)];
+    }
+
     public string GetResName(int id)
     {
         switch (id) {

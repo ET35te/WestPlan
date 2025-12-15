@@ -4,16 +4,15 @@ using UnityEngine;
 using UnityEngine.UI; // 必须引用
 using TMPro;
 
+
 public class UIManager : MonoBehaviour
 {
     public static UIManager Instance { get; private set; }
 
-    public enum UIState 
-    { 
-        MainMenu, Gameplay, Result, Achievement, Battle, NodeSummary, Ending 
-    }
+    public enum UIState { MainMenu, Gameplay, Result, Achievement, Battle, NodeSummary, Ending }
     
-    [Header("--- 层级 1: 核心面板 ---")]
+    // ... (保留你之前所有的 Header 和 变量) ...
+    [Header("--- 层级 1 ---")]
     public GameObject MainMenuPanel;
     public GameObject GameplayPanel;
     public GameObject ResultPanel;
@@ -21,70 +20,61 @@ public class UIManager : MonoBehaviour
     public GameObject NodeSummaryPanel;
     public GameObject BattlePanel;
 
-    [Header("--- 层级 2 & 3: 辅助层级 ---")]
+    [Header("--- 层级 2 & 3 ---")]
     public GameObject HUDLayer;         
     public GameObject EndingLayer;      
 
-    [Header("--- 1. 主菜单组件 ---")]
+    [Header("--- 组件 ---")]
     public TMP_Text TitleText;          
-    public Button StartBtn;             
+    public Button StartBtn;
+    public Button ContinueBtn; // NEW! 新增“继续游戏”按钮 (记得去UI里加一个)
     public Button QuitBtn;              
     public Button AchievementBtn;       
 
-    [Header("--- 2. 游玩界面组件 ---")]
-    public GameObject EventWindow;
     public TMP_Text EventTitleText;     
     public TMP_Text PlaceText;          
     public TMP_Text ContextText;        
     public Button ButtonA;              
     public Button ButtonB;              
 
-    [Header("--- 3. 结果界面组件 ---")]
     public TMP_Text ResultText;         
     public Button ConfirmResultBtn;     
 
-    [Header("--- 4. 节点总结组件 ---")]
     public TMP_Text SummaryTitleText;   
     public TMP_Text SummaryContentText; 
     public Button ToBeContinueBtn;      
 
-    [Header("--- 5. 战斗界面组件 ---")]
     public Transform CardContainer;     
     public Button ConfirmBattleBtn;     
 
-    [Header("--- 6. 结局界面组件 ---")]
     public TMP_Text ScrollingText;      
 
-    [Header("--- HUD 组件 ---")]
     public Button GlobalQuitToTitleBtn; 
-    public TMP_Text ResourceInfoText;   
+    public TMP_Text ResourceInfoText;
+    
+    public GameObject EventWindow; // 记得这里
 
     private DataManager.EventData currentEvent;
     private UIState currentState;
 
-private void Awake()
+    private void Awake()
     {
-        // 1. 简单的单例保护
-        if (Instance != null && Instance != this) 
-        {
-            Destroy(gameObject);
-        }
-        else 
-        { 
-            Instance = this; 
-            // 2. 暂时注释掉下面这行！
-            // 为了防止开发时出现奇奇怪怪的问题，我们先不让它跨场景，反正目前只有一个场景。
-            // DontDestroyOnLoad(gameObject); 
-        }
-
-        // 👇👇👇 重点：下面什么都不要写！ 👇👇👇
-        // 不要写 GameObject.Find
-        // 不要写 GetComponent
-        // 相信你自己在 Inspector 里拖拽的引用！
+        if (Instance != null && Instance != this) Destroy(gameObject);
+        else { Instance = this; } 
     }
+
     void Start()
     {
-        StartBtn.onClick.AddListener(OnClickStartGame);
+        StartBtn.onClick.AddListener(() => GameManager.Instance.StartNewGame());
+        
+        // 如果有继续按钮，绑定它
+        if(ContinueBtn != null) 
+        {
+            ContinueBtn.onClick.AddListener(() => GameManager.Instance.LoadGame());
+            // 如果没存档，隐藏继续按钮
+            if (!PlayerPrefs.HasKey("HasSave")) ContinueBtn.gameObject.SetActive(false);
+        }
+
         QuitBtn.onClick.AddListener(OnClickQuitGame);
         AchievementBtn.onClick.AddListener(() => SwitchState(UIState.Achievement));
 
@@ -116,7 +106,7 @@ private void Awake()
         switch (newState)
         {
             case UIState.MainMenu: MainMenuPanel.SetActive(true); break;
-            case UIState.Gameplay: GameplayPanel.SetActive(true); break;
+            case UIState.Gameplay: GameplayPanel.SetActive(true); if(EventWindow) EventWindow.SetActive(true); break;
             case UIState.Result: ResultPanel.SetActive(true); break;
             case UIState.Achievement: AchievementPanel.SetActive(true); break;
             case UIState.NodeSummary: NodeSummaryPanel.SetActive(true); break;
@@ -125,95 +115,84 @@ private void Awake()
         }
     }
 
-    public void OnClickStartGame()
-    {
-        SwitchState(UIState.Gameplay);
-        UpdateResourceDisplay();
-        ShowNextEvent(); 
-    }
-
-    public void OnClickQuitGame()
-    {
-        #if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-        #else
-            Application.Quit();
-        #endif
-    }
-
-    public void OnClickReturnToTitle()
-    {
-        SwitchState(UIState.MainMenu);
-    }
-
     public void ShowNextEvent()
     {
-        // 1. 尝试获取事件
-        Debug.Log ("正在尝试获取随机事件");
         currentEvent = DataManager.Instance.GetRandomEvent();
-        
-        // 【调试关键点】如果没有读到事件，打印错误
-        if (currentEvent == null) 
-        {
-            Debug.LogError("【严重错误】没有获取到随机事件！请检查 EventTable.csv 是否在 Resources/Data 下，且内容不为空！");
-            return;
-        }
-        
-        Debug.Log($"【流程】准备显示事件：{currentEvent.Title} (战斗: {!currentEvent.IsPeaceful})");
+        if (currentEvent == null) return;
 
-        // 2. 判断是否触发战斗
         if (currentEvent.IsPeaceful == false)
         {
-            // --- 战斗逻辑 ---
-            SwitchState(UIState.Battle); // 切换到战斗UI层级
-            Debug.Log($"尝试显示的剧情文本是：[{currentEvent.Context}]");
-            // 确保这里呼叫的是 NewBattleManager
-            if (NewBattleManager.Instance != null)
-            {
-                NewBattleManager.Instance.StartBattle(currentEvent);
-            }
-            else
-            {
-                Debug.LogError("【严重错误】找不到 NewBattleManager 实例！请检查是否挂载了脚本！");
-            }
+            SwitchState(UIState.Battle);
+            if(NewBattleManager.Instance != null) NewBattleManager.Instance.StartBattle(currentEvent);
         }
         else
         {
-            // --- 和平/剧情逻辑 ---
-            SwitchState(UIState.Gameplay); // 切换到剧情UI层级
+            SwitchState(UIState.Gameplay);
+            EventTitleText.text = currentEvent.Title;
+            ContextText.text = currentEvent.Context;
             
-            // 填充文本
-            if(EventTitleText != null) EventTitleText.text = currentEvent.Title;
-            if(ContextText != null) ContextText.text = currentEvent.Context;
+            // 设置按钮文字
+            var txtA = ButtonA.GetComponentInChildren<TMP_Text>();
+            if(txtA) txtA.text = currentEvent.OptA_Text;
             
-            // 按钮文字赋值 (防止按钮没挂对报错)
-            if(ButtonA != null) ButtonA.GetComponentInChildren<TMP_Text>().text = currentEvent.OptA_Text;
-            if(ButtonB != null) ButtonB.GetComponentInChildren<TMP_Text>().text = currentEvent.OptB_Text;
-            
-            // 确保事件窗口是打开的 (以防 Gameplay Panel 打开了但里面的 Event Window 关着)
-            if(EventWindow != null) EventWindow.SetActive(true); // 👈 这一步很重要！
+            var txtB = ButtonB.GetComponentInChildren<TMP_Text>();
+            if(txtB) txtB.text = currentEvent.OptB_Text;
+
+            // --- 📝 周二任务：选项B 条件检查 ---
+            CheckOptionCondition(ButtonB, currentEvent.OptB_Condition);
+        }
+    }
+
+    // --- 核心：条件解析逻辑 ---
+    void CheckOptionCondition(Button btn, string conditionStr)
+    {
+        // 默认可用
+        btn.interactable = true;
+        
+        // 如果条件为空，直接返回
+        if (string.IsNullOrEmpty(conditionStr)) return;
+
+        // 解析 "104:500" -> ID 104, 阈值 500
+        string[] parts = conditionStr.Split(':');
+        if (parts.Length == 2)
+        {
+            int resID = int.Parse(parts[0]);
+            int threshold = int.Parse(parts[1]);
+            int currentVal = ResourceManager.Instance.GetResourceValue(resID);
+
+            if (currentVal < threshold)
+            {
+                // 条件不满足：置灰禁用
+                btn.interactable = false;
+                // 可选：在按钮文字上加红色提示
+                var txt = btn.GetComponentInChildren<TMP_Text>();
+                txt.text += $"\n<color=red>(需 {GameManager.Instance.GetResName(resID)} {threshold})</color>";
+            }
         }
     }
 
     void OnSelectOption(bool isA)
     {
         string resultStr = GameManager.Instance.ResolveEventOption(currentEvent, isA);
-        ShowResult(resultStr); // 调用下面的 ShowResult
+        ShowResult(resultStr);
     }
 
-    // --- 修复点：这里是新增的 ShowResult 方法 ---
     public void ShowResult(string resultStr)
     {
+        if (currentState == UIState.Ending)
+        {
+            Debug.Log("[UI]Have been check the Panel Entered Ending, Stop the Result");
+            return;
+        }
         SwitchState(UIState.Result);
         ResultText.text = resultStr;
         UpdateResourceDisplay();
     }
-    // ------------------------------------------
 
     void ReturnToGameplay()
     {
         SwitchState(UIState.Gameplay);
-        ShowNextEvent(); // 自动接下一个事件
+        // ShowNextEvent(); // 暂时不连续弹，等时间走完
     }
 
     public void ShowNodeSummary(string title, string content)
@@ -223,17 +202,36 @@ private void Awake()
         SummaryContentText.text = content;
     }
 
+    // --- 💀 周日思考：结局显示 ---
+    public void ShowEnding(string content)
+    {
+        SwitchState(UIState.Ending);
+        ScrollingText.text = content;
+        // 这里可以加一个协程让它滚动
+    }
+
     void OnClickNextNode()
     {
         GameManager.Instance.GoToNextNode();
     }
 
+    public void OnClickReturnToTitle()
+    {
+        SwitchState(UIState.MainMenu);
+    }
+
+    void OnClickQuitGame()
+    {
+        #if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+        #else
+            Application.Quit();
+        #endif
+    }
+
     public void UpdateResourceDisplay()
     {
-        if (ResourceManager.Instance != null && ResourceInfoText != null)
-        {
-            ResourceInfoText.text = $"粮:{ResourceManager.Instance.Grain} 信:{ResourceManager.Instance.Belief}";
-        }
+        // ... (ResourceItem 已经处理了显示，这里可以留空或做其他刷新)
     }
     
     public void UpdatePlaceName(string name)
