@@ -108,6 +108,7 @@ public class GameManager : MonoBehaviour
             case "VICTORY":
                 TriggerEnding("Victory_Event");
                 break;
+            //此处可以拓展事件    
         }
     }
 

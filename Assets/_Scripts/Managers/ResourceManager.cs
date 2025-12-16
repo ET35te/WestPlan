@@ -17,7 +17,6 @@ public class ResourceManager : MonoBehaviour
 
     [Header("配置")]
     public int MaxBelief = 100;
-
     private void Awake()
     {
         if (Instance != null && Instance != this) Destroy(this.gameObject);
@@ -85,7 +84,19 @@ public class ResourceManager : MonoBehaviour
         // 刷新 UI
         if(UIManager.Instance != null) UIManager.Instance.UpdateResourceDisplay();
     }
-
+// 把这段代码加到 ResourceManager 类的大括号里面
+    public string GetResName(int resID)
+    {
+        switch (resID)
+        {
+            case 101: return "黄金";
+            case 102: return "粮草";
+            case 103: return "木材";
+            case 104: return "兵力";
+            case 105: return "马匹";
+            default: return "资源";
+        }
+    }
     public int GetResourceValue(int id)
     {
         switch (id) {

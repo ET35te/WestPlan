@@ -123,7 +123,7 @@ public class UIManager : MonoBehaviour
         if (currentEvent.IsPeaceful == false)
         {
             SwitchState(UIState.Battle);
-            if(NewBattleManager.Instance != null) NewBattleManager.Instance.StartBattle(currentEvent);
+            if(BattleManager.Instance != null) BattleManager.Instance.StartBattle(currentEvent);
         }
         else
         {
@@ -131,45 +131,55 @@ public class UIManager : MonoBehaviour
             EventTitleText.text = currentEvent.Title;
             ContextText.text = currentEvent.Context;
             
-            // 设置按钮文字
+            // 1. 设置按钮 A (默认总是可选)
             var txtA = ButtonA.GetComponentInChildren<TMP_Text>();
             if(txtA) txtA.text = currentEvent.OptA_Text;
+            ButtonA.interactable = true;
             
+            // 2. 设置按钮 B (带条件检查)
             var txtB = ButtonB.GetComponentInChildren<TMP_Text>();
             if(txtB) txtB.text = currentEvent.OptB_Text;
-
-            // --- 📝 周二任务：选项B 条件检查 ---
+            
+            // 核心调用：检查条件
             CheckOptionCondition(ButtonB, currentEvent.OptB_Condition);
         }
     }
 
-    // --- 核心：条件解析逻辑 ---
+    // --- 核心逻辑：解析 "102:500" (ID:阈值) ---
     void CheckOptionCondition(Button btn, string conditionStr)
     {
-        // 默认可用
+        // 先重置为可用
         btn.interactable = true;
         
-        // 如果条件为空，直接返回
-        if (string.IsNullOrEmpty(conditionStr)) return;
+        // 如果没有条件，直接返回
+        if (string.IsNullOrEmpty(conditionStr) || conditionStr == "0:0") return;
 
-        // 解析 "104:500" -> ID 104, 阈值 500
-        string[] parts = conditionStr.Split(':');
-        if (parts.Length == 2)
+        try 
         {
+            string[] parts = conditionStr.Split(':');
             int resID = int.Parse(parts[0]);
             int threshold = int.Parse(parts[1]);
+            
             int currentVal = ResourceManager.Instance.GetResourceValue(resID);
 
+            // 如果资源不足
             if (currentVal < threshold)
             {
-                // 条件不满足：置灰禁用
-                btn.interactable = false;
-                // 可选：在按钮文字上加红色提示
+                btn.interactable = false; // 变灰禁用
+                
+                // 在按钮文字上加红色提示
                 var txt = btn.GetComponentInChildren<TMP_Text>();
-                txt.text += $"\n<color=red>(需 {GameManager.Instance.GetResName(resID)} {threshold})</color>";
+                string resName = GameManager.Instance.GetResName(resID);
+                txt.text += $"\n<color=red><size=80%>(需 {resName} {threshold})</size></color>";
             }
         }
+        catch 
+        { 
+            Debug.LogWarning($"条件解析失败: {conditionStr}"); 
+        }
     }
+    // --- 核心：条件解析逻辑 ---
+
 
     void OnSelectOption(bool isA)
     {

@@ -1,82 +1,82 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections.Generic;
 
 public class BattleLaneUI : MonoBehaviour
 {
+    [Header("配置")]
+    public string LaneName; // "前军", "中军"...
+    public int MaxSlots = 4; // 上限4张
+
     [Header("UI引用")]
-    public TMP_Text LaneNameText;       // 显示 "左翼" 等
-    public Image EnemyIntentIcon;       // 敌方意图图标
-    public Button PlayerCommandBtn;     // 玩家点击的按钮
-    public TMP_Text CommandText;        // 按钮上的字
-    public TMP_Text ResultText;         // 结算文字
+    public Transform SlotContainer; // 放卡牌小图标的地方
+    public Toggle GrainToggle;      // 粮草开关
+    public Toggle ShieldToggle;     // 护盾开关
+    public TMP_Text PowerText;      // 显示当前战力
 
-    [Header("图标配置")]
-    public Sprite Icon_Attack;
-    public Sprite Icon_Defend;
-    public Sprite Icon_Empty;
+    private List<DataManager.CardData> cardsInLane = new List<DataManager.CardData>();
 
-    // 数据索引
-    private int laneIndex; 
-    
-    // 初始化
-    public void Setup(int index, string name)
+    public bool HasGrain => GrainToggle.isOn;
+    public bool HasShield => ShieldToggle.isOn;
+
+    void Start()
     {
-        laneIndex = index;
-        LaneNameText.text = name;
-        ResultText.text = "";
+        GetComponent<Button>().onClick.AddListener(() => BattleManager.Instance.OnLaneClicked(transform.GetSiblingIndex()));
+    }
+
+    public void ResetLane()
+    {
+        cardsInLane.Clear();
+        GrainToggle.isOn = false;
+        ShieldToggle.isOn = false;
+        UpdateVisuals();
+    }
+
+    // 尝试添加卡牌
+    public bool AddCard(DataManager.CardData card)
+    {
+        if (cardsInLane.Count >= MaxSlots) return false; // 满了
         
-        // 绑定点击事件：点击按钮 -> 呼叫 Manager 切换指令
-        PlayerCommandBtn.onClick.RemoveAllListeners();
-        PlayerCommandBtn.onClick.AddListener(() => NewBattleManager.Instance.OnLaneClicked(laneIndex));
+        cardsInLane.Add(card);
+        UpdateVisuals();
+        return true;
     }
 
-    // 更新敌方显示 (明牌)
-    public void UpdateEnemyView(NewBattleManager.MilitaryStance stance)
+    // 清空并返回卡牌 (给弃牌堆)
+    public List<DataManager.CardData> ClearLane()
     {
-        switch (stance)
+        List<DataManager.CardData> temp = new List<DataManager.CardData>(cardsInLane);
+        cardsInLane.Clear();
+        UpdateVisuals();
+        return temp;
+    }
+
+    public int GetTotalPower()
+    {
+        int sum = 0;
+        foreach (var c in cardsInLane) sum += c.Power;
+        return sum;
+    }
+
+    void UpdateVisuals()
+    {
+        // 1. 更新卡牌小图标 (简单用个方块代表)
+        foreach (Transform child in SlotContainer) Destroy(child.gameObject);
+        
+        foreach (var card in cardsInLane)
         {
-            case NewBattleManager.MilitaryStance.Attack:
-                EnemyIntentIcon.sprite = Icon_Attack;
-                EnemyIntentIcon.color = Color.red;
-                break;
-            case NewBattleManager.MilitaryStance.Defend:
-                EnemyIntentIcon.sprite = Icon_Defend;
-                EnemyIntentIcon.color = Color.blue;
-                break;
-            case NewBattleManager.MilitaryStance.Empty:
-                EnemyIntentIcon.sprite = Icon_Empty;
-                EnemyIntentIcon.color = new Color(0,0,0,0.5f); // 半透明
-                break;
+            // 这里应该生成一个小一点的卡牌图标，简单起见生成一个 Text
+            GameObject icon = new GameObject("Icon");
+            icon.transform.SetParent(SlotContainer, false);
+            var txt = icon.AddComponent<TextMeshProUGUI>();
+            txt.text = $"[{card.Power}]";
+            txt.fontSize = 20;
+            txt.color = Color.white;
         }
-    }
 
-    // 更新我方显示
-    public void UpdatePlayerView(NewBattleManager.MilitaryStance stance)
-    {
-        switch (stance)
-        {
-            case NewBattleManager.MilitaryStance.Attack:
-                CommandText.text = "攻 (兵-5)";
-                PlayerCommandBtn.image.color = new Color(1f, 0.6f, 0.6f); // 淡红
-                break;
-            case NewBattleManager.MilitaryStance.Defend:
-                CommandText.text = "守 (粮-10)";
-                PlayerCommandBtn.image.color = new Color(0.6f, 0.6f, 1f); // 淡蓝
-                break;
-            case NewBattleManager.MilitaryStance.Empty:
-                CommandText.text = "空 (无消耗)";
-                PlayerCommandBtn.image.color = Color.white;
-                break;
-        }
-    }
-
-    // 显示本路结算结果
-    public void ShowResult(string text, Color color)
-    {
-        ResultText.text = text;
-        ResultText.color = color;
+        // 2. 更新战力显示
+        int p = GetTotalPower();
+        PowerText.text = $"{LaneName}\n战力: {p*p} ({p}²)";
     }
 }
