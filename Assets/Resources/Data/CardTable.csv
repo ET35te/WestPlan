@@ -1,2 +1,6 @@
-﻿ID,Name,Type,Power,Cost,Effect_ID,Description
-6001,精锐步兵,1,3,0,0,基础兵力卡
+﻿ID,Name,Type,Power,Cost,EffectID,Description
+6001,辅兵,1,1,0,NONE,基础单位。虽然弱小，但也是肉。
+6002,正规军,1,2,0,NONE,受过训练的汉军士兵。
+6003,精锐步兵,1,3,0,NONE,身披重甲的精锐，中流砥柱。
+6004,急行军,2,0,0,RUSH,本回合该战线必定先手攻击。(未实装)
+6005,医疗补给,2,0,0,HEAL,恢复该战线单位的状态。(未实装)

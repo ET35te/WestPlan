@@ -70,13 +70,26 @@ public class BattleManager : MonoBehaviour
     }
 
     // --- 2. 回合开始 (摸牌) ---
-    void StartTurn()
+        void StartTurn()
     {
-        BattleLogText.text = ">>> 新回合开始，摸牌...";
-        DrawCards(2); // 摸2张
+        GenerateEnemyMoves(); // 1. 先生成敌人意图
+        
+        BattleLogText.text = ">>> 新回合：敌军意图已暴露！请部署卡牌。";
+        DrawCards(2); 
         RefreshHandUI();
     }
-
+        void GenerateEnemyMoves()
+    {
+        foreach (var lane in Lanes)
+        {
+            // 简单 AI：随机生成 1~3 点战力
+            int power = UnityEngine.Random.Range(1, 4);
+            // 50% 概率攻击，50% 概率防守
+            bool isAttack = UnityEngine.Random.value > 0.5f;
+            
+            lane.SetEnemyIntent(power, isAttack);
+        }
+    }
     void DrawCards(int count)
     {
         for (int i = 0; i < count; i++)
@@ -135,33 +148,45 @@ public class BattleManager : MonoBehaviour
         // 依次结算 3 路 (0:前, 1:中, 2:侧)
         for (int i = 0; i < 3; i++)
         {
-            var lane = Lanes[i];
-            
-            // A. 基础攻击力 = (兵力总和)^2
-            int rawPower = lane.GetTotalPower();
-            int finalDamage = rawPower * rawPower;
-
-            // B. 资源修正
-            if (lane.HasGrain) 
-            {
-                // 有粮：正常伤害 (或者加成，看你规则)
-                ResourceManager.Instance.ChangeResource(102, -10); // 扣全局粮草
-            }
-            else 
-            {
-                // 无粮：伤害减半
-                finalDamage /= 2; 
-            }
-
-            // C. 护盾逻辑 (简化：护盾抵消反伤，这里暂只算进攻)
-            
-            if (finalDamage > 0)
-            {
-                BattleLogText.text = $"{lane.LaneName} 发起攻击！造成 {finalDamage} 点伤害！";
-                // 模拟攻击敌方对应路 (这里简化为直接打敌方中军)
-                // 规则里：侧军打侧军，前军打前军。这里简单化：全部伤害汇总打Boss
-                totalDamageToEnemy += finalDamage;
-            }
+             var lane = Lanes[i];
+    int myPower = lane.GetTotalPower(); // 我方总战力
+    int enemyPower = lane.EnemyPower;   // 敌方总战力 (新增)
+    
+    // 简单的抵消逻辑
+    //int damage = 0;
+    
+    if (lane.IsEnemyAttacking)
+    {
+        // 敌方进攻 vs 我方 (可能是攻也可能是守)
+        // 假设我方战力可以抵消敌方战力
+        int netDamage = enemyPower - myPower;
+        if (netDamage > 0)
+        {
+            BattleLogText.text = $"{lane.LaneName}: 防守失败！受到 {netDamage} 伤害";
+            // 扣我方资源/血量 (这里暂扣兵力)
+            ResourceManager.Instance.ChangeResource(104, -netDamage);
+        }
+        else
+        {
+            BattleLogText.text = $"{lane.LaneName}: 成功防御！";
+        }
+    }
+    else // 敌方防守
+    {
+        // 我方进攻 vs 敌方防守
+        int netDamage = myPower - enemyPower;
+        if (netDamage > 0)
+        {
+            // 伤害公式：(净胜战力)^2
+            int finalDmg = netDamage * netDamage;
+            BattleLogText.text = $"{lane.LaneName}: 突破防线！对敌造成 {finalDmg} 伤害";
+            totalDamageToEnemy += finalDmg;
+        }
+        else
+        {
+            BattleLogText.text = $"{lane.LaneName}: 攻击被阻挡。";
+        }
+    }
             
             // 结算后清空该路卡牌 -> 进弃牌堆
             discardPile.AddRange(lane.ClearLane());

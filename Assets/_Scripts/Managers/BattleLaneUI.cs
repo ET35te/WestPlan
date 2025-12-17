@@ -19,7 +19,18 @@ public class BattleLaneUI : MonoBehaviour
 
     public bool HasGrain => GrainToggle.isOn;
     public bool HasShield => ShieldToggle.isOn;
+// 在 BattleLaneUI.cs 中添加/修改
 
+    [Header("敌方意图 UI")]
+    public Image EnemyIcon;       // 拖入 Enemy_Intent_Icon
+    public TMPro.TMP_Text EnemyValText; // 拖入 Enemy_Value_Text
+    
+    // 敌方这一路的数据
+    public int EnemyPower { get; private set; }
+    public bool IsEnemyAttacking { get; private set; } // true=攻, false=守/空
+
+    // 设置敌方意图 (由 Manager 调用)
+   
     void Start()
     {
         GetComponent<Button>().onClick.AddListener(() => BattleManager.Instance.OnLaneClicked(transform.GetSiblingIndex()));
@@ -42,7 +53,18 @@ public class BattleLaneUI : MonoBehaviour
         UpdateVisuals();
         return true;
     }
+ public void SetEnemyIntent(int power, bool isAttack)
+    {
+        EnemyPower = power;
+        IsEnemyAttacking = isAttack;
 
+        EnemyValText.text = power.ToString();
+        // 简单变色：红=攻，蓝=守
+        EnemyIcon.color = isAttack ? Color.red : Color.blue; 
+        
+        // 如果有图标资源，可以在这里 swap sprite
+        // EnemyIcon.sprite = isAttack ? Icon_Sword : Icon_Shield;
+    }
     // 清空并返回卡牌 (给弃牌堆)
     public List<DataManager.CardData> ClearLane()
     {
