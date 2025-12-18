@@ -112,9 +112,20 @@ public class BattleManager : MonoBehaviour
     public void OnHandCardClicked(DataManager.CardData card)
     {
         selectedHandCard = card;
-        BattleLogText.text = $"选择了：{card.Name}，请点击战线部署。";
-    }
+        BattleLogText.text = $"选择了：{card.Name}";
 
+        // 遍历所有手牌UI，更新高亮状态
+        foreach (Transform child in HandContainer)
+        {
+            var ui = child.GetComponent<BattleCardUI>();
+            // 判断这个UI代表的卡是不是当前选中的卡
+            // 注意：这里需要 BattleCardUI 公开它的 myData，或者在 Setup 里存一下 ID 对比
+            // 简单做法：BattleCardUI 增加一个 public DataManager.CardData Data { get; private set; }
+            
+            if (ui.Data == card) ui.SetSelected(true);
+            else ui.SetSelected(false);
+        }
+    }
     // 由 BattleLaneUI 调用
     public void OnLaneClicked(int laneIndex)
     {

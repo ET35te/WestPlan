@@ -47,13 +47,17 @@ public class BattleLaneUI : MonoBehaviour
     // 尝试添加卡牌
     public bool AddCard(DataManager.CardData card)
     {
-        if (cardsInLane.Count >= MaxSlots) return false; // 满了
+        if (cardsInLane.Count >= MaxSlots) 
+        {
+            // --- 视觉反馈：飘字或抖动 ---
+            Debug.Log("战线已满！"); // 暂时用Log，下周做漂浮文字
+            return false; 
+        }
         
         cardsInLane.Add(card);
         UpdateVisuals();
         return true;
-    }
- public void SetEnemyIntent(int power, bool isAttack)
+    } public void SetEnemyIntent(int power, bool isAttack)
     {
         EnemyPower = power;
         IsEnemyAttacking = isAttack;
