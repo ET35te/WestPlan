@@ -169,7 +169,7 @@ public class UIManager : MonoBehaviour
                 
                 // 在按钮文字上加红色提示
                 var txt = btn.GetComponentInChildren<TMP_Text>();
-                string resName = GameManager.Instance.GetResName(resID);
+                string resName = ResourceManager.Instance.GetResName(resID);
                 txt.text += $"\n<color=red><size=80%>(需 {resName} {threshold})</size></color>";
             }
         }
@@ -199,12 +199,52 @@ public class UIManager : MonoBehaviour
         UpdateResourceDisplay();
     }
 
+
+    // --- 修改：点击结果界面的确认按钮后 ---
     void ReturnToGameplay()
     {
         SwitchState(UIState.Gameplay);
-        // ShowNextEvent(); // 暂时不连续弹，等时间走完
+        
+        // 关键改动：不再直接 ShowNextEvent，而是问 GameManager 下一步干嘛
+        // (是继续下一个随机事件？还是跳指定事件？还是进结算？)
+        GameManager.Instance.CheckGameStateAfterResult(); 
     }
 
+    // --- 新增：显示指定 ID 的事件 ---
+    public void ShowSpecificEvent(int eventID)
+    {
+        // 从所有事件中查找
+        currentEvent = DataManager.Instance.AllEvents.Find(e => e.ID == eventID);
+        
+        if (currentEvent == null) 
+        {
+            Debug.LogError($"找不到 ID 为 {eventID} 的事件！");
+            // 保底：显示个随机的
+            ShowNextEvent(); 
+            return;
+        }
+
+        // 显示逻辑 (复用之前的)
+        if (currentEvent.IsPeaceful == false)
+        {
+            SwitchState(UIState.Battle);
+            if(BattleManager.Instance != null) BattleManager.Instance.StartBattle(currentEvent);
+        }
+        else
+        {
+            SwitchState(UIState.Gameplay);
+            EventTitleText.text = currentEvent.Title;
+            ContextText.text = currentEvent.Context;
+            
+            var txtA = ButtonA.GetComponentInChildren<TMP_Text>();
+            if(txtA) txtA.text = currentEvent.OptA_Text;
+            
+            var txtB = ButtonB.GetComponentInChildren<TMP_Text>();
+            if(txtB) txtB.text = currentEvent.OptB_Text;
+
+            CheckOptionCondition(ButtonB, currentEvent.OptB_Condition);
+        }
+    }
     public void ShowNodeSummary(string title, string content)
     {
         SwitchState(UIState.NodeSummary);
