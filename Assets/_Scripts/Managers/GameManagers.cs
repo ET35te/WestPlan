@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+
+
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
@@ -13,39 +15,78 @@ public class GameManager : MonoBehaviour
     
     public int CurrentNodeIndex = 0; 
     public int CurrentMonth = 1;     
-    public bool IsFantasyLine = false; // 路线标记
+    public bool IsFantasyLine = false; 
 
-    [Header("--- 时间控制 ---")]
-    public float TimeLimitPerNode = 60f; 
-    public float CurrentTimer;
-    public bool IsTimerRunning = false;
+    [Header("--- 流程控制 ---")]
+    public int RandomEventsPerNode = 3; // 每个节点先过3个随机事件，再过剧情
+    public int CurrentEventCount = 0;   // 当前节点已过的事件数
+    private int forcedNextEventID = 0;  // 下一个强制跳转的事件ID
 
     private void Awake()
     {
-        if (Instance != null && Instance != this) Destroy(this.gameObject);
-        else { Instance = this; DontDestroyOnLoad(this.gameObject); }
+        // 单例模式 + 场景切换不销毁
+        if (Instance != null && Instance != this) 
+        {
+            Destroy(gameObject); // 如果已经有一个Manager了，销毁新的
+        }
+        else 
+        {
+            Instance = this; 
+            DontDestroyOnLoad(gameObject); // 👈 关键：切换场景时，我不要死！
+        }
     }
 
     void Start()
     {
-        // 游戏启动时不自动开始，等待点击“开始”或“继续”
-        IsTimerRunning = false;
+        // 游戏启动等待UI调用 StartNewGame 或 LoadGame
     }
 
-    void Update()
+    // --- 核心流程 1: 处理事件结果后的跳转 ---
+    // 由 UIManager 在点击“结果确认”按钮后调用
+    public void CheckGameStateAfterResult()
     {
-        if (IsTimerRunning)
+        // A. 如果有强制跳转 (通过 Effect_Type 设置了 JUMP:ID)
+        if (forcedNextEventID != 0)
         {
-            CurrentTimer -= Time.deltaTime;
-            if (CurrentTimer <= 0) TriggerSettlement(); 
+            int nextID = forcedNextEventID;
+            forcedNextEventID = 0; // 重置
+            UIManager.Instance.ShowSpecificEvent(nextID);
+            return;
+        }
+
+        // B. 计数增加
+        CurrentEventCount++;
+
+        // C. 判断是否该进入节点结算
+        // 逻辑：随机事件跑够了 -> 触发该节点的“最终剧情” -> 最终剧情结束后 -> 触发结算
+        // 这里简化：假设跑完 RandomEventsPerNode 次后，直接进入结算
+        if (CurrentEventCount >= RandomEventsPerNode)
+        {
+            TriggerSettlement();
+        }
+        else
+        {
+            // 继续下一个随机事件
+            UIManager.Instance.ShowNextEvent();
         }
     }
-
-    // --- 核心流程：节点结算与存档 ---
+    // 把原来的 StartNewGame 拆分一下，去掉 UI 操作
+    public void ResetDataOnly()
+    {
+        // 只重置数据，不调用 UI
+        PlayerPrefs.DeleteAll(); 
+        if(ResourceManager.Instance != null) ResourceManager.Instance.ResetResources();
+        
+        CurrentMonth = 1;
+        CurrentNodeIndex = 0;
+        IsFantasyLine = false;
+        CurrentEventCount = 0;
+        
+        Debug.Log("GM: 数据已重置，准备进入新游戏...");
+    }
+    // --- 核心流程 2: 触发节点结算界面 ---
     public void TriggerSettlement()
     {
-        IsTimerRunning = false; 
-        
         if (CurrentMonth >= 12) { TriggerEnding("Victory_Time"); return; }
 
         string summaryTitle = $"大汉建初元年 - {CurrentMonth}月";
@@ -54,53 +95,50 @@ public class GameManager : MonoBehaviour
 
         UIManager.Instance.ShowNodeSummary(summaryTitle, summaryContent);
         
-        // --- 💾 周日思考：节点自动存档 ---
-        SaveGame();
+        // 注意：现在结算时不存档，点击“继续”进入下一关时才存档，或者在这里存也可以
+        // 建议：点击“继续”进入下一关的一瞬间存档，保证玩家是在新状态下开始
     }
 
+    // --- 核心流程 3: 前往下一站 (由结算界面的继续按钮调用) ---
     public void GoToNextNode()
     {
+        // 1. 数据更新
         CurrentMonth++;
+        CurrentEventCount = 0; // 重置事件计数
+        forcedNextEventID = 0;
+        
         if (CurrentNodeIndex < Nodes_Historical.Length - 1) CurrentNodeIndex++;
 
-        CurrentTimer = TimeLimitPerNode;
-        IsTimerRunning = true;
+        // 2. 存档 (确保下次进来是新的一关)
+        SaveGame();
 
+        // 3. UI 更新
         UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
         UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
+        
+        // 4. 开始新一轮事件
         UIManager.Instance.ShowNextEvent();
     }
 
-    // --- 💀 周日思考：结局/死亡 ---
-    public void TriggerEnding(string endingType)
-    {
-        IsTimerRunning = false;
-        string endText = "";
-        
-        // 根据结局类型显示不同文案 (后续可扩展)
-        if (endingType == "Death_Belief") endText = "军心涣散，再无力西进。\n你倒在了黄沙之中...";
-        else if (endingType == "Victory_Time") endText = "历经十二载，终于完成了使命！";
-        else endText = "旅途终结。";
-
-        // 清空存档，防止死档循环
-        PlayerPrefs.DeleteKey("HasSave"); 
-        
-        UIManager.Instance.ShowEnding(endText);
-    }
-
-    // --- 📝 周二任务：特殊效果处理 ---
-    // 在 UIManager 点击选项后调用这个，处理 Effect_Type
+    // --- 特殊效果处理 (新增 JUMP) ---
     public void HandleEventEffect(string effectType)
     {
         if (string.IsNullOrEmpty(effectType)) return;
+        Debug.Log($"触发特效: {effectType}");
 
-        Debug.Log($"触发特殊效果: {effectType}");
+        // 解析 JUMP:1005 格式
+        if (effectType.StartsWith("JUMP:"))
+        {
+            int jumpID = int.Parse(effectType.Split(':')[1]);
+            forcedNextEventID = jumpID;
+            Debug.Log($">>> 准备跳转至事件 {jumpID}");
+            return;
+        }
 
         switch (effectType)
         {
             case "SWITCH_ROUTE_FANTASY":
                 IsFantasyLine = true;
-                Debug.Log(">>> 进入幻想线！ <<<");
                 break;
             case "GAME_OVER":
                 TriggerEnding("Bad_End_Event");
@@ -108,17 +146,83 @@ public class GameManager : MonoBehaviour
             case "VICTORY":
                 TriggerEnding("Victory_Event");
                 break;
-            //此处可以拓展事件    
+            case "NODE_END": // 强制立刻结算
+                CurrentEventCount = 999; 
+                break;
         }
     }
 
-    // --- 事件判定逻辑 (保留原有，不重复发) ---
+    // --- 存档系统 ---
+    public void SaveGame()
+    {
+        PlayerPrefs.SetInt("Save_Belief", ResourceManager.Instance.Belief);
+        PlayerPrefs.SetInt("Save_Grain", ResourceManager.Instance.Grain);
+        PlayerPrefs.SetInt("Save_Water", ResourceManager.Instance.Water);
+        PlayerPrefs.SetInt("Save_Troops", ResourceManager.Instance.Troops);
+        PlayerPrefs.SetInt("Save_Money", ResourceManager.Instance.Money);
+        PlayerPrefs.SetInt("Save_Horses", ResourceManager.Instance.Horses);
+        PlayerPrefs.SetInt("Save_Armor", ResourceManager.Instance.Armor);
+
+        PlayerPrefs.SetInt("Save_Month", CurrentMonth);
+        PlayerPrefs.SetInt("Save_NodeIdx", CurrentNodeIndex);
+        PlayerPrefs.SetInt("Save_IsFantasy", IsFantasyLine ? 1 : 0);
+        
+        PlayerPrefs.SetInt("HasSave", 1); 
+        PlayerPrefs.Save();
+        Debug.Log("进度已保存");
+    }
+
+    public void LoadGame()
+    {
+        if (PlayerPrefs.GetInt("HasSave", 0) == 0) return;
+
+        ResourceManager.Instance.Belief = PlayerPrefs.GetInt("Save_Belief");
+        ResourceManager.Instance.Grain = PlayerPrefs.GetInt("Save_Grain");
+        ResourceManager.Instance.Water = PlayerPrefs.GetInt("Save_Water");
+        ResourceManager.Instance.Troops = PlayerPrefs.GetInt("Save_Troops");
+        ResourceManager.Instance.Money = PlayerPrefs.GetInt("Save_Money");
+        ResourceManager.Instance.Horses = PlayerPrefs.GetInt("Save_Horses");
+        ResourceManager.Instance.Armor = PlayerPrefs.GetInt("Save_Armor");
+
+        CurrentMonth = PlayerPrefs.GetInt("Save_Month");
+        CurrentNodeIndex = PlayerPrefs.GetInt("Save_NodeIdx");
+        IsFantasyLine = PlayerPrefs.GetInt("Save_IsFantasy") == 1;
+
+        CurrentEventCount = 0; // 读档后重置当前进度计数
+
+        UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
+        UIManager.Instance.UpdateResourceDisplay();
+        UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
+        UIManager.Instance.ShowNextEvent();
+    }
+
+    public void StartNewGame()
+    {
+        PlayerPrefs.DeleteAll(); 
+        ResourceManager.Instance.ResetResources(); // 需确保 ResourceManager 有此方法
+        
+        CurrentMonth = 1;
+        CurrentNodeIndex = 0;
+        IsFantasyLine = false;
+        CurrentEventCount = 0;
+        
+        UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
+        UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
+        UIManager.Instance.ShowNextEvent();
+    }
+
+    public string GetCurrentNodeName()
+    {
+        if (IsFantasyLine) return Nodes_Fantasy[Mathf.Clamp(CurrentNodeIndex, 0, Nodes_Fantasy.Length-1)];
+        else return Nodes_Historical[Mathf.Clamp(CurrentNodeIndex, 0, Nodes_Historical.Length-1)];
+    }
+
+    // --- 事件判定 (保持不变) ---
     public string ResolveEventOption(DataManager.EventData evt, bool chooseA)
     {
         string baseResultText = "";
-        string dataString = ""; // 存那个 "101:10;102:-5" 字符串
+        string dataString = ""; 
 
-        // 1. 判定概率
         int rate2 = chooseA ? evt.OptA_Res2_Rate : evt.OptB_Res2_Rate;
         int roll = Random.Range(0, 100);
         bool triggerResult2 = roll < rate2;
@@ -134,138 +238,44 @@ public class GameManager : MonoBehaviour
             dataString = chooseA ? evt.OptA_Res1_Data : evt.OptB_Res1_Data;
         }
 
-        // 2. 解析字符串并应用资源 + 生成变动文本
         string changeLog = ApplyMultiResources(dataString);
+        HandleEventEffect(evt.Effect_Type); // 处理特效/跳转
 
-        // 3. 处理特殊效果
-        HandleEventEffect(evt.Effect_Type);
-
-        // 4. 返回最终文本
         return baseResultText + changeLog;
     }
 
-    // --- 核心：多资源解析器 ---
-    // 输入: "101:10;102:-50"
-    // 输出: "\n(信念 +10)\n(粮食 -50)"
     private string ApplyMultiResources(string dataStr)
     {
         if (string.IsNullOrEmpty(dataStr) || dataStr == "0:0") return "";
-
         string logBuilder = "";
-        
-        // A. 按分号拆分多组数据: ["101:10", "102:-50"]
         string[] entries = dataStr.Split(';');
-
         foreach (string entry in entries)
         {
             if (string.IsNullOrWhiteSpace(entry)) continue;
-
-            // B. 按冒号拆分 ID 和 数值
             string[] parts = entry.Split(':');
             if (parts.Length == 2)
             {
                 int id = int.Parse(parts[0]);
                 int val = int.Parse(parts[1]);
-
                 if (val != 0)
                 {
-                    // 执行变动
                     ResourceManager.Instance.ChangeResource(id, val);
-
-                    // 拼接显示文本
-                    string resName = GetResName(id);
+                    string resName = ResourceManager.Instance.GetResName(id); // 需确保 ResourceManager 此方法 Public
                     string sign = val > 0 ? "+" : "";
-                    string colorHex = val > 0 ? "#00FF00" : "#FF4500"; // 绿涨红跌
-                    
+                    string colorHex = val > 0 ? "#00FF00" : "#FF4500"; 
                     logBuilder += $"\n<color={colorHex}>({resName} {sign}{val})</color>";
                 }
             }
         }
-
         return logBuilder;
     }
 
-    // --- 💾 存档系统实现 ---
-    public void SaveGame()
+    public void TriggerEnding(string endingType)
     {
-        PlayerPrefs.SetInt("Saved_Belief", ResourceManager.Instance.Belief);
-        PlayerPrefs.SetInt("Saved_Grain", ResourceManager.Instance.Grain);
-        // ... 保存其他资源 (Water, Troops, Money, Horses, Armor)
-        PlayerPrefs.SetInt("Saved_Water", ResourceManager.Instance.Water);
-        PlayerPrefs.SetInt("Saved_Troops", ResourceManager.Instance.Troops);
-        PlayerPrefs.SetInt("Saved_Money", ResourceManager.Instance.Money);
-        PlayerPrefs.SetInt("Saved_Horses", ResourceManager.Instance.Horses);
-        PlayerPrefs.SetInt("Saved_Armor", ResourceManager.Instance.Armor);
-
-        PlayerPrefs.SetInt("Saved_Month", CurrentMonth);
-        PlayerPrefs.SetInt("Saved_NodeIndex", CurrentNodeIndex);
-        PlayerPrefs.SetInt("Saved_IsFantasy", IsFantasyLine ? 1 : 0);
+        string endText = endingType == "Victory_Time" ? "历经艰辛，终于抵达终点。" : "旅途终结。";
+        if (endingType == "Death_Belief") endText = "信念崩塌，倒在黄沙之中。";
         
-        PlayerPrefs.SetInt("HasSave", 1); // 标记有存档
-        PlayerPrefs.Save();
-        Debug.Log("【系统】游戏已保存");
-    }
-
-    public void LoadGame()
-    {
-        if (!PlayerPrefs.HasKey("HasSave")) return;
-
-        ResourceManager.Instance.Belief = PlayerPrefs.GetInt("Saved_Belief");
-        ResourceManager.Instance.Grain = PlayerPrefs.GetInt("Saved_Grain");
-        // ... 读取其他资源
-        ResourceManager.Instance.Water = PlayerPrefs.GetInt("Saved_Water");
-        ResourceManager.Instance.Troops = PlayerPrefs.GetInt("Saved_Troops");
-        ResourceManager.Instance.Money = PlayerPrefs.GetInt("Saved_Money");
-        ResourceManager.Instance.Horses = PlayerPrefs.GetInt("Saved_Horses");
-        ResourceManager.Instance.Armor = PlayerPrefs.GetInt("Saved_Armor");
-
-        CurrentMonth = PlayerPrefs.GetInt("Saved_Month");
-        CurrentNodeIndex = PlayerPrefs.GetInt("Saved_NodeIndex");
-        IsFantasyLine = PlayerPrefs.GetInt("Saved_IsFantasy") == 1;
-
-        // 恢复状态
-        UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
-        CurrentTimer = TimeLimitPerNode;
-        IsTimerRunning = true;
-        
-        UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
-        UIManager.Instance.UpdateResourceDisplay();
-        Debug.Log("【系统】存档已读取");
-    }
-
-    public void StartNewGame()
-    {
-        PlayerPrefs.DeleteAll(); // 清除旧存档
-        // 重置资源 (这里简单写，你可以封装 Reset 方法)
-        ResourceManager.Instance.Belief = 80;
-        ResourceManager.Instance.Grain = 100;
-        // ...
-        
-        CurrentMonth = 1;
-        CurrentNodeIndex = 0;
-        IsFantasyLine = false;
-        
-        CurrentTimer = TimeLimitPerNode;
-        IsTimerRunning = true;
-        
-        UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
-        UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
-        UIManager.Instance.ShowNextEvent();
-    }
-
-    public string GetCurrentNodeName()
-    {
-        if (IsFantasyLine) return Nodes_Fantasy[Mathf.Clamp(CurrentNodeIndex, 0, Nodes_Fantasy.Length-1)];
-        else return Nodes_Historical[Mathf.Clamp(CurrentNodeIndex, 0, Nodes_Historical.Length-1)];
-    }
-
-    public string GetResName(int id)
-    {
-        switch (id) {
-            case 101: return "信念"; case 102: return "粮食";
-            case 103: return "储水"; case 104: return "兵力";
-            case 105: return "财货"; case 106: return "马匹";
-            case 107: return "披甲"; default: return "资源";
-        }
+        PlayerPrefs.DeleteKey("HasSave"); 
+        UIManager.Instance.ShowEnding(endText);
     }
 }

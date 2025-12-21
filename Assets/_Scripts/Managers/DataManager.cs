@@ -48,20 +48,29 @@ public class DataManager : MonoBehaviour
     public List<EventData> AllEvents = new List<EventData>();
     public List<CardData> AllCards = new List<CardData>(); // 新卡牌库
     public List<EnemyData> AllEnemies = new List<EnemyData>();
-
     private void Awake()
     {
-        if (Instance != null && Instance != this) Destroy(gameObject);
-        else { Instance = this; DontDestroyOnLoad(gameObject); }
+        // 1. 单例逻辑 (保持不变)
+        if (Instance != null && Instance != this) 
+        {
+            Destroy(gameObject); 
+        }
+        else 
+        {
+            Instance = this; 
+            DontDestroyOnLoad(gameObject); 
+            
+            // 2. 🔥 【关键修改】在这里加载数据！不要在 Start 里加载！
+            LoadEventTable();
+            LoadCardTable();
+            LoadEnemyTable();
+        }
     }
-
     private void Start()
     {
-        LoadEventTable();
-        LoadCardTable(); // 加载新表
-        LoadEnemyTable();
+        Debug.Log("数据中心就绪");
     }
-
+       
     // ... (LoadEventTable 和 LoadEnemyTable 代码保持不变，此处省略以节省空间) ...
 void LoadEventTable()
     {

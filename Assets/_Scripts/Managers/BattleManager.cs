@@ -31,44 +31,104 @@ public class BattleManager : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance != null && Instance != this) Destroy(gameObject);
-        else { Instance = this; DontDestroyOnLoad(gameObject); }
-    }
+        // 🔥 强制上位逻辑 🔥
+        // 如果之前有其他的 Instance，那是旧时代的残党，直接杀掉！
+        // 我们要用当前场景里这个配置齐全的新 Manager！
+        if (Instance != null && Instance != this)
+        {
+            Debug.LogWarning($"⚔️ [BattleManager] 发现旧的实例 {Instance.gameObject.name}，正在销毁它...");
+            Destroy(Instance.gameObject); // 杀掉旧的
+        }
 
+        // 我就是新的王！
+        Instance = this;
+        
+        // 注意：因为 BattleManager 现在是属于 GameScene 本地的，
+        // 所以【不要】加 DontDestroyOnLoad。
+        // 让它随场景生，随场景死。
+        
+        Debug.Log("✅ [BattleManager] 初始化完成，我是新的单例。");
+    }    
+    
     void Start()
     {
-        EndTurnBtn.onClick.AddListener(OnEndTurnClicked);
-        BattlePanel.SetActive(false);
-    }
+        // --- 1. 按钮绑定的“双重保险” ---
+        if (EndTurnBtn != null)
+        {
+            // 🔥 关键一步：先移除所有旧的监听！
+            // 防止：如果脚本重置，按钮被绑定了两次，点击一下就会触发两次结算（导致双倍弹窗）
+            EndTurnBtn.onClick.RemoveAllListeners(); 
+            
+            // 然后再绑定
+            EndTurnBtn.onClick.AddListener(OnEndTurnClicked);
+        }
+        else
+        {
+            // 之前的报错教训：如果没有这一行，EndTurnBtn 为空时游戏直接卡死
+            Debug.LogError("❌ [BattleManager] Start时发现 EndTurnBtn 是空的！请检查 Awake 是否自动找到了它。");
+        }
 
+        // --- 2. 面板隐藏 ---
+        if (BattlePanel != null)
+        {
+            BattlePanel.SetActive(false);
+        }
+    }
     // --- 1. 战斗初始化 ---
     public void StartBattle(DataManager.EventData evt)
     {
-        BattlePanel.SetActive(true);
-        enemyCenterHP = 5; // 重置Boss血量
-        
-        // 解析敌人信息 (仅作显示)
-        string enemyName = "未知敌军";
-        if (!string.IsNullOrEmpty(evt.OptA_Res1_Data) && evt.OptA_Res1_Data.StartsWith("ENEMY:"))
-        {
-            int eid = int.Parse(evt.OptA_Res1_Data.Split(':')[1]);
-            var enemy = DataManager.Instance.GetEnemyByID(eid);
-            if(enemy != null) enemyName = enemy.Name;
-        }
-        EnemyInfoText.text = $"{enemyName} (中军生命: {enemyCenterHP})";
+        Debug.Log("⚔️ [Battle] 正在初始化战斗...");
 
-        // 初始化卡组 (洗牌)
+        // 1. 强制打开面板 (双重保险)
+        if (BattlePanel != null) 
+        {
+            BattlePanel.SetActive(true);
+            Debug.Log("⚔️ [Battle] 面板已激活");
+        }
+        else Debug.LogError("❌ [Battle] BattlePanel 没拖！无法显示！");
+
+        enemyCenterHP = 5; 
+        
+        // 2. 解析敌人
+        string enemyName = "未知敌军";
+        if (evt != null && !string.IsNullOrEmpty(evt.OptA_Res1_Data))
+        {
+            Debug.Log($"⚔️ [Battle] 解析敌人数据: {evt.OptA_Res1_Data}");
+            // 注意：这里如果 Split 失败会报错，加个 TryCatch
+            try {
+                if (evt.OptA_Res1_Data.StartsWith("ENEMY:")) {
+                    int eid = int.Parse(evt.OptA_Res1_Data.Split(':')[1]);
+                    var enemy = DataManager.Instance.GetEnemyByID(eid);
+                    if(enemy != null) enemyName = enemy.Name;
+                }
+            } catch { Debug.LogError("❌ [Battle] 敌人数据解析失败！"); }
+        }
+        
+        if (EnemyInfoText != null) EnemyInfoText.text = $"{enemyName} (中军生命: {enemyCenterHP})";
+
+        // 3. 初始化卡组
+        if (DataManager.Instance == null) { Debug.LogError("❌ [Battle] DataManager 丢失！"); return; }
+        
+        Debug.Log("⚔️ [Battle] 正在洗牌...");
         drawPile = new List<DataManager.CardData>(DataManager.Instance.GetStarterDeck());
         Shuffle(drawPile);
         handPile.Clear();
         discardPile.Clear();
 
-        // 初始化战线
-        foreach(var lane in Lanes) lane.ResetLane();
+        // 4. 初始化战线
+        Debug.Log("⚔️ [Battle] 重置战线...");
+        if (Lanes == null || Lanes.Length == 0) Debug.LogError("❌ [Battle] Lanes 数组是空的！没法打仗！");
+        else 
+        {
+            foreach(var lane in Lanes) 
+            {
+                if(lane != null) lane.ResetLane();
+            }
+        }
 
+        Debug.Log("⚔️ [Battle] 回合开始！");
         StartTurn();
     }
-
     // --- 2. 回合开始 (摸牌) ---
         void StartTurn()
     {
@@ -151,63 +211,89 @@ public class BattleManager : MonoBehaviour
 
     IEnumerator ResolveBattleRoutine()
     {
-        BattleLogText.text = ">>> 开始战斗结算...";
+        Debug.Log("🚀 [结算] 协程启动！");
+
+        // 1. 检查 Log 组件
+        if (BattleLogText != null) 
+        {
+            BattleLogText.text = ">>> 开始战斗结算...";
+        }
+        else 
+        {
+            Debug.LogError("❌ [结算中断] BattleLogText 没拖！代码在这里死掉了！");
+            yield break; // 强制退出
+        }
+
         yield return new WaitForSeconds(0.5f);
 
         int totalDamageToEnemy = 0;
 
-        // 依次结算 3 路 (0:前, 1:中, 2:侧)
+        // 2. 检查 Lanes 数组
+        if (Lanes == null || Lanes.Length < 3)
+        {
+            Debug.LogError("❌ [结算中断] Lanes 数组没满3个！请去 Inspector 拖拽赋值！");
+            yield break;
+        }
+
+        // 依次结算 3 路
         for (int i = 0; i < 3; i++)
         {
-             var lane = Lanes[i];
-    int myPower = lane.GetTotalPower(); // 我方总战力
-    int enemyPower = lane.EnemyPower;   // 敌方总战力 (新增)
-    
-    // 简单的抵消逻辑
-    //int damage = 0;
-    
-    if (lane.IsEnemyAttacking)
-    {
-        // 敌方进攻 vs 我方 (可能是攻也可能是守)
-        // 假设我方战力可以抵消敌方战力
-        int netDamage = enemyPower - myPower;
-        if (netDamage > 0)
-        {
-            BattleLogText.text = $"{lane.LaneName}: 防守失败！受到 {netDamage} 伤害";
-            // 扣我方资源/血量 (这里暂扣兵力)
-            ResourceManager.Instance.ChangeResource(104, -netDamage);
-        }
-        else
-        {
-            BattleLogText.text = $"{lane.LaneName}: 成功防御！";
-        }
-    }
-    else // 敌方防守
-    {
-        // 我方进攻 vs 敌方防守
-        int netDamage = myPower - enemyPower;
-        if (netDamage > 0)
-        {
-            // 伤害公式：(净胜战力)^2
-            int finalDmg = netDamage * netDamage;
-            BattleLogText.text = $"{lane.LaneName}: 突破防线！对敌造成 {finalDmg} 伤害";
-            totalDamageToEnemy += finalDmg;
-        }
-        else
-        {
-            BattleLogText.text = $"{lane.LaneName}: 攻击被阻挡。";
-        }
-    }
+            Debug.Log($"⚔️ [结算] 正在处理第 {i} 路...");
             
-            // 结算后清空该路卡牌 -> 进弃牌堆
+            var lane = Lanes[i];
+            if (lane == null)
+            {
+                Debug.LogError($"❌ [结算中断] 第 {i} 路 (Element {i}) 是空的 (None)！");
+                yield break;
+            }
+
+            int myPower = lane.GetTotalPower();
+            int enemyPower = lane.EnemyPower;
+            
+            // ... (原有的结算逻辑) ...
+            // 为了测试，先简单打印一下
+            Debug.Log($"   -> 我方: {myPower} vs 敌方: {enemyPower}");
+
+            // 模拟伤害逻辑 (把你原来的逻辑粘回来，或者暂时只保留 Log)
+            if (lane.IsEnemyAttacking)
+            {
+                int netDamage = enemyPower - myPower;
+                if (netDamage > 0)
+                {
+                    if(BattleLogText) BattleLogText.text = $"{lane.LaneName}: 防守失败！受到 {netDamage} 伤害";
+                    ResourceManager.Instance.ChangeResource(104, -netDamage);
+                }
+                else
+                {
+                    if(BattleLogText) BattleLogText.text = $"{lane.LaneName}: 成功防御！";
+                }
+            }
+            else 
+            {
+                int netDamage = myPower - enemyPower;
+                if (netDamage > 0)
+                {
+                    int finalDmg = netDamage * netDamage;
+                    if(BattleLogText) BattleLogText.text = $"{lane.LaneName}: 突破防线！造成 {finalDmg} 伤害";
+                    totalDamageToEnemy += finalDmg;
+                }
+                else
+                {
+                    if(BattleLogText) BattleLogText.text = $"{lane.LaneName}: 攻击被阻挡。";
+                }
+            }
+
+            // 清理卡牌
             discardPile.AddRange(lane.ClearLane());
-            
+
             yield return new WaitForSeconds(1f);
         }
 
-        // 判定胜负
+        // 3. 结算完毕
+        Debug.Log($"🏁 [结算] 最终伤害: {totalDamageToEnemy}");
+        
         enemyCenterHP -= totalDamageToEnemy;
-        EnemyInfoText.text = $"敌军中军生命: {enemyCenterHP}";
+        if (EnemyInfoText != null) EnemyInfoText.text = $"敌军中军生命: {enemyCenterHP}";
 
         if (enemyCenterHP <= 0)
         {
@@ -215,16 +301,13 @@ public class BattleManager : MonoBehaviour
         }
         else
         {
-            // 敌方反击 (简单扣兵力)
+            // 敌方反击
             ResourceManager.Instance.ChangeResource(104, -5);
-            BattleLogText.text = "敌方反击！我军兵力 -5";
+            if(BattleLogText) BattleLogText.text = "敌方反击！我军兵力 -5";
             yield return new WaitForSeconds(1f);
-            
-            // 下一回合
             StartTurn();
         }
     }
-
     void EndBattle(bool isWin)
     {
         BattlePanel.SetActive(false);

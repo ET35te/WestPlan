@@ -19,10 +19,16 @@ public class ResourceManager : MonoBehaviour
     public int MaxBelief = 100;
     private void Awake()
     {
-        if (Instance != null && Instance != this) Destroy(this.gameObject);
-        else { Instance = this; } // 暂时去掉 DontDestroyOnLoad，配合现在的单场景逻辑
+        if (Instance != null && Instance != this) 
+        {
+            Destroy(this.gameObject);
+        }
+        else 
+        { 
+            Instance = this; 
+            DontDestroyOnLoad(this.gameObject); // 👈 恢复这行代码！一定要有！
+        } 
     }
-
     private void Start()
     {
         // --- 修复点：不要在这里强制重置 ---

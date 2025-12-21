@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI; // 必须引用
 using TMPro;
-
+using UnityEngine.SceneManagement;
 
 public class UIManager : MonoBehaviour
 {
@@ -56,95 +56,240 @@ public class UIManager : MonoBehaviour
 
     private DataManager.EventData currentEvent;
     private UIState currentState;
-
+    public BattleManager SceneBattleManager;
     private void Awake()
     {
         if (Instance != null && Instance != this) Destroy(gameObject);
         else { Instance = this; } 
     }
-
     void Start()
     {
-        StartBtn.onClick.AddListener(() => GameManager.Instance.StartNewGame());
+        // ==========================================
+        // 1. 通用按钮绑定 (所有场景都需要防空判断)
+        // ==========================================
         
-        // 如果有继续按钮，绑定它
-        if(ContinueBtn != null) 
+        // 退出游戏 (主菜单的退出)
+        if (QuitBtn != null) 
+            QuitBtn.onClick.AddListener(OnClickQuitGame);
+
+        // 返回标题 (游戏内的退出)
+        if (GlobalQuitToTitleBtn != null) 
+            GlobalQuitToTitleBtn.onClick.AddListener(OnClickReturnToTitle);
+
+        // 成就按钮 (如果主菜单有的话)
+        if (AchievementBtn != null) 
+            AchievementBtn.onClick.AddListener(() => SwitchState(UIState.Achievement));
+
+        // ==========================================
+        // 2. 场景逻辑分流 (核心修改)
+        // ==========================================
+        string currentSceneName = SceneManager.GetActiveScene().name;
+
+        // 🟢 情况 A：当前在【主菜单场景】 (MainMenu)
+        if (currentSceneName == "MainMenu") 
         {
-            ContinueBtn.onClick.AddListener(() => GameManager.Instance.LoadGame());
-            // 如果没存档，隐藏继续按钮
-            if (!PlayerPrefs.HasKey("HasSave")) ContinueBtn.gameObject.SetActive(false);
+            // --- 绑定开始按钮 ---
+            if (StartBtn != null)
+            {
+                StartBtn.onClick.RemoveAllListeners();
+                StartBtn.onClick.AddListener(() => 
+                {
+                    // 告诉 GM 重置数据，然后加载场景
+                    GameManager.Instance.ResetDataOnly(); 
+                    SceneManager.LoadScene("SampleScene"); // ⚠️ 确保你的场景名叫 GameScene
+                });
+            }
+
+            // --- 绑定继续按钮 (带存档检查) ---
+            if (ContinueBtn != null)
+            {
+                ContinueBtn.onClick.RemoveAllListeners();
+                ContinueBtn.onClick.AddListener(() => 
+                {
+                    // 加载存档逻辑：先切场景，再读档
+                    // 这里由于要切场景，通常建议用 PlayerPrefs 记一个标记，或者让 GM 知道是 LoadGame
+                    // 简化版：先加载场景，GameManager 在 Start 里会判断是否有存档（需额外实现）
+                    // 暂时保持原逻辑：
+                    GameManager.Instance.LoadGame(); 
+                    SceneManager.LoadScene("SampleScene");
+                });
+
+                // 如果没存档，隐藏继续按钮 (这是你原来的逻辑)
+                if (!PlayerPrefs.HasKey("HasSave")) 
+                {
+                    ContinueBtn.gameObject.SetActive(false);
+                }
+            }
+
+            // 初始化状态为主菜单
+            SwitchState(UIState.MainMenu);
         }
+        // 🔵 情况 B：当前在【游戏场景】 (GameScene)
+        else 
+        {
+            // --- 绑定游戏内交互按钮 (原来的逻辑) ---
+            if (ButtonA != null) ButtonA.onClick.AddListener(() => OnSelectOption(true));
+            if (ButtonB != null) ButtonB.onClick.AddListener(() => OnSelectOption(false));
+            
+            if (ConfirmResultBtn != null) ConfirmResultBtn.onClick.AddListener(ReturnToGameplay);
+            if (ToBeContinueBtn != null) ToBeContinueBtn.onClick.AddListener(OnClickNextNode);
 
-        QuitBtn.onClick.AddListener(OnClickQuitGame);
-        AchievementBtn.onClick.AddListener(() => SwitchState(UIState.Achievement));
+            // 强制切换到游戏状态
+            //SwitchState(UIState.Gameplay);
+            if (HUDLayer != null) HUDLayer.SetActive(true);
+            // --- 🔥 核心修复：主动请求开局 ---
+            if (GameManager.Instance != null)
+            {
+                // 如果是从主菜单点"继续游戏"进来的，这里可能需要区分是 Load 还是 New
+                // 但为了简化，我们先假设 GM 数据已经就绪
+                
+                UpdatePlaceName(GameManager.Instance.GetCurrentNodeName());
+                UpdateResourceDisplay();
 
-        ButtonA.onClick.AddListener(() => OnSelectOption(true));
-        ButtonB.onClick.AddListener(() => OnSelectOption(false));
-
-        ConfirmResultBtn.onClick.AddListener(ReturnToGameplay); 
-        ToBeContinueBtn.onClick.AddListener(OnClickNextNode); 
-        GlobalQuitToTitleBtn.onClick.AddListener(OnClickReturnToTitle);
-
-        SwitchState(UIState.MainMenu);
+                // 只有当当前没有事件显示时，才请求下一个 (防止重复)
+                if (currentEvent == null)
+                {
+                    ShowNextEvent();
+                }
+            }
+            else
+            {
+                Debug.LogError("⚠️ 没找到 GameManager！请从 MainMenu 开始运行，或者把 _System 预制体拖入场景测试。");
+            }
+        }
     }
-
     public void SwitchState(UIState newState)
     {
         currentState = newState;
 
-        MainMenuPanel.SetActive(false);
-        GameplayPanel.SetActive(false);
-        ResultPanel.SetActive(false);
-        AchievementPanel.SetActive(false);
-        NodeSummaryPanel.SetActive(false);
-        BattlePanel.SetActive(false);
+        // --- 🛡️ 防弹衣修改：先判空，再隐藏 ---
+        // 这样即使在主菜单场景里 GameplayPanel 是 None，也不会报错
+        if (MainMenuPanel != null) MainMenuPanel.SetActive(false);
+        if (GameplayPanel != null) GameplayPanel.SetActive(false);
+        if (ResultPanel != null) ResultPanel.SetActive(false);
+        if (AchievementPanel != null) AchievementPanel.SetActive(false);
+        if (NodeSummaryPanel != null) NodeSummaryPanel.SetActive(false);
+        if (BattlePanel != null) BattlePanel.SetActive(false);
+        // ------------------------------------
 
+        // 处理 HUD 和 Ending 层 (同样判空)
         bool showHUD = (newState != UIState.MainMenu && newState != UIState.Ending);
-        HUDLayer.SetActive(showHUD);
-        EndingLayer.SetActive(newState == UIState.Ending);
+        if (HUDLayer != null) HUDLayer.SetActive(showHUD);
+        if (EndingLayer != null) EndingLayer.SetActive(newState == UIState.Ending);
 
+        // --- 根据状态显示对应的面板 ---
         switch (newState)
         {
-            case UIState.MainMenu: MainMenuPanel.SetActive(true); break;
-            case UIState.Gameplay: GameplayPanel.SetActive(true); if(EventWindow) EventWindow.SetActive(true); break;
-            case UIState.Result: ResultPanel.SetActive(true); break;
-            case UIState.Achievement: AchievementPanel.SetActive(true); break;
-            case UIState.NodeSummary: NodeSummaryPanel.SetActive(true); break;
-            case UIState.Battle: BattlePanel.SetActive(true); break;
-            case UIState.Ending: /* 结局逻辑 */ break;
+            case UIState.MainMenu: 
+                if (MainMenuPanel != null) MainMenuPanel.SetActive(true); 
+                break;
+
+            case UIState.Gameplay: 
+                if (GameplayPanel != null) 
+                {
+                    GameplayPanel.SetActive(true); 
+                    if(EventWindow != null) EventWindow.SetActive(true); 
+                }
+                break;
+
+            case UIState.Result: 
+                if (ResultPanel != null) ResultPanel.SetActive(true); 
+                break;
+
+            case UIState.Achievement: 
+                if (AchievementPanel != null) AchievementPanel.SetActive(true); 
+                break;
+
+            case UIState.NodeSummary: 
+                if (NodeSummaryPanel != null) NodeSummaryPanel.SetActive(true); 
+                break;
+
+            case UIState.Battle: 
+                if (BattlePanel != null) BattlePanel.SetActive(true); 
+                break;
+
+            case UIState.Ending: 
+                /* 结局逻辑，如果有独立面板也记得判空 */ 
+                break;
         }
     }
-
     public void ShowNextEvent()
     {
-        currentEvent = DataManager.Instance.GetRandomEvent();
-        if (currentEvent == null) return;
+        Debug.Log("🕵️‍♂️ [1] ShowNextEvent 开始运行...");
 
+        // --- 1. 检查数据源 ---
+        if (DataManager.Instance == null)
+        {
+            Debug.LogError("❌ [中断] DataManager 是 null！");
+            return;
+        }
+
+        currentEvent = DataManager.Instance.GetRandomEvent();
+
+        if (currentEvent == null) 
+        {
+            Debug.LogError("❌ [中断] 获取到的事件是 null！CSV 可能没加载。");
+            return;
+        }
+
+        Debug.Log($"🕵️‍♂️ [2] 获取事件成功 | ID: {currentEvent.ID} | 标题: {currentEvent.Title} | 和平状态(IsPeaceful): {currentEvent.IsPeaceful}");
+
+        // --- 2. 逻辑分流 ---
         if (currentEvent.IsPeaceful == false)
         {
+            Debug.Log("⚔️ [3] 进入【战斗】分支");
+            
+            // 检查战斗管理器
+            if (SceneBattleManager == null)
+            {
+                Debug.LogError("❌ [中断] 试图进入战斗，但 SceneBattleManager 没拖进 UIManager！");
+                return;
+            }
+
             SwitchState(UIState.Battle);
-            if(BattleManager.Instance != null) BattleManager.Instance.StartBattle(currentEvent);
+            Debug.Log("⚔️ [4] 呼叫 BattleManager.StartBattle...");
+            SceneBattleManager.StartBattle(currentEvent);
         }
         else
         {
+            Debug.Log("🕊️ [3] 进入【剧情】分支");
+
             SwitchState(UIState.Gameplay);
-            EventTitleText.text = currentEvent.Title;
-            ContextText.text = currentEvent.Context;
+            Debug.Log("🕊️ [4] 面板已打开 (SwitchState 完成)");
+
+            // --- 3. 赋值检查 (这里最容易报错中断) ---
             
-            // 1. 设置按钮 A (默认总是可选)
-            var txtA = ButtonA.GetComponentInChildren<TMP_Text>();
-            if(txtA) txtA.text = currentEvent.OptA_Text;
-            ButtonA.interactable = true;
+            // 检查标题组件
+            if (EventTitleText == null) Debug.LogError("❌ [UI丢失] EventTitleText 没拖！标题无法显示！");
+            else EventTitleText.text = currentEvent.Title;
+
+            // 检查内容组件
+            if (ContextText == null) Debug.LogError("❌ [UI丢失] ContextText 没拖！内容无法显示！");
+            else ContextText.text = currentEvent.Context;
+
+            Debug.Log("🕊️ [5] 文字赋值完成");
             
-            // 2. 设置按钮 B (带条件检查)
-            var txtB = ButtonB.GetComponentInChildren<TMP_Text>();
-            if(txtB) txtB.text = currentEvent.OptB_Text;
-            
-            // 核心调用：检查条件
-            CheckOptionCondition(ButtonB, currentEvent.OptB_Condition);
+            // 设置按钮 A
+            if (ButtonA != null)
+            {
+                var txtA = ButtonA.GetComponentInChildren<TMP_Text>();
+                if (txtA != null) txtA.text = currentEvent.OptA_Text;
+                ButtonA.interactable = true;
+            }
+            else Debug.LogError("❌ [UI丢失] ButtonA 没拖！");
+
+            // 设置按钮 B
+            if (ButtonB != null)
+            {
+                var txtB = ButtonB.GetComponentInChildren<TMP_Text>();
+                if (txtB != null) txtB.text = currentEvent.OptB_Text;
+                CheckOptionCondition(ButtonB, currentEvent.OptB_Condition);
+            }
+            else Debug.LogError("❌ [UI丢失] ButtonB 没拖！");
+
+            Debug.Log("✅ [6] ShowNextEvent 全部执行完毕，界面应该显示了！");
         }
     }
-
     // --- 核心逻辑：解析 "102:500" (ID:阈值) ---
     void CheckOptionCondition(Button btn, string conditionStr)
     {
@@ -180,13 +325,29 @@ public class UIManager : MonoBehaviour
     }
     // --- 核心：条件解析逻辑 ---
 
-
+    // 替换掉原来的 void OnSelectOption(bool isA)
     void OnSelectOption(bool isA)
     {
+        Debug.Log($"🖱️ [点击测试] 选择了: {(isA ? "A" : "B")}");
+
+        if (currentEvent == null)
+        {
+            Debug.LogError("❌ 操作无效：currentEvent 是空的！");
+            return;
+        }
+
+        if (GameManager.Instance == null)
+        {
+            Debug.LogError("❌ 操作无效：GameManager 是空的！");
+            return;
+        }
+
+        // 调用逻辑
         string resultStr = GameManager.Instance.ResolveEventOption(currentEvent, isA);
+        Debug.Log($"✅ 结算结果: {resultStr}");
+        
         ShowResult(resultStr);
     }
-
     public void ShowResult(string resultStr)
     {
         if (currentState == UIState.Ending)
