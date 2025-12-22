@@ -3,338 +3,286 @@ using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using TMPro;
 
 public class BattleManager : MonoBehaviour
 {
-    public static BattleManager Instance { get; private set; }
+    public static BattleManager Instance;
 
-    [Header("UI 引用")]
-    public GameObject BattlePanel;
-    public Transform HandContainer;     // 手牌区父物体
-    public GameObject CardPrefab;       // 手牌预制体
-    public Button EndTurnBtn;           // 结束回合/攻击按钮
-    public TMPro.TMP_Text BattleLogText;// 战报显示
-    public TMPro.TMP_Text EnemyInfoText;// 敌方信息
+    [Header("--- UI 引用 (可为空，防报错) ---")]
+    public TMP_Text PlayerResourceText; // 显示粮/甲
+    public TMP_Text EnemyResourceText;
+    public TMP_Text BattleLogText;      // 战斗日志
+    public Button AttackBtn;
+    public Button DefendBtn;
+    public Button SkipBtn;
 
-    [Header("战线引用 (0:前军, 1:中军, 2:侧军)")]
-    public BattleLaneUI[] Lanes;        // 必须拖入3个Lane
+    [Header("--- 战斗核心数据 ---")]
+    // 双方生命值 (代表兵力，为0则败)
+    public int PlayerUnitCount;
+    public int EnemyUnitCount;
 
-    // --- 运行时数据 ---
-    private List<DataManager.CardData> drawPile = new List<DataManager.CardData>(); // 抽牌堆
-    private List<DataManager.CardData> handPile = new List<DataManager.CardData>(); // 手牌
-    private List<DataManager.CardData> discardPile = new List<DataManager.CardData>(); // 弃牌堆
+    // 双方资源
+    public int PlayerFood, PlayerArmor;
+    public int EnemyFood, EnemyArmor;
 
-    private DataManager.CardData selectedHandCard; // 当前选中的手牌
-    
-    private int enemyCenterHP = 5; // 敌方中军生命
-    private int playerCenterHP = 5; // 我方中军生命 (简化版)
+    // 回合状态标记
+    private bool isPlayerTurn;
+    private bool isFirstAttackOfTurn; // 标记是否为首攻
+    private bool playerIsDefending;   // 玩家本回合是否防御中
+    private bool enemyIsDefending;    // 敌人本回合是否防御中
 
-    private void Awake()
+    private int turnCount = 0;
+
+    void Awake()
     {
-        // 🔥 强制上位逻辑 🔥
-        // 如果之前有其他的 Instance，那是旧时代的残党，直接杀掉！
-        // 我们要用当前场景里这个配置齐全的新 Manager！
-        if (Instance != null && Instance != this)
-        {
-            Debug.LogWarning($"⚔️ [BattleManager] 发现旧的实例 {Instance.gameObject.name}，正在销毁它...");
-            Destroy(Instance.gameObject); // 杀掉旧的
-        }
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+    }
 
-        // 我就是新的王！
-        Instance = this;
-        
-        // 注意：因为 BattleManager 现在是属于 GameScene 本地的，
-        // 所以【不要】加 DontDestroyOnLoad。
-        // 让它随场景生，随场景死。
-        
-        Debug.Log("✅ [BattleManager] 初始化完成，我是新的单例。");
-    }    
-    
     void Start()
     {
-        // --- 1. 按钮绑定的“双重保险” ---
-        if (EndTurnBtn != null)
-        {
-            // 🔥 关键一步：先移除所有旧的监听！
-            // 防止：如果脚本重置，按钮被绑定了两次，点击一下就会触发两次结算（导致双倍弹窗）
-            EndTurnBtn.onClick.RemoveAllListeners(); 
-            
-            // 然后再绑定
-            EndTurnBtn.onClick.AddListener(OnEndTurnClicked);
-        }
-        else
-        {
-            // 之前的报错教训：如果没有这一行，EndTurnBtn 为空时游戏直接卡死
-            Debug.LogError("❌ [BattleManager] Start时发现 EndTurnBtn 是空的！请检查 Awake 是否自动找到了它。");
-        }
+        StartBattle(null);
+    }
 
-        // --- 2. 面板隐藏 ---
-        if (BattlePanel != null)
+    // 🔥 键盘调试模式：远程开发神器
+    void Update()
+    {
+        if (!isPlayerTurn) return; // 只有玩家回合才响应按键
+
+        // 按 A 进攻
+        if (Input.GetKeyDown(KeyCode.A)) 
         {
-            BattlePanel.SetActive(false);
+            Debug.Log("⌨️ [键盘 A] -> 尝试进攻");
+            OnAttackCmd();
+        }
+        // 按 D 防守
+        if (Input.GetKeyDown(KeyCode.D))
+        {
+            Debug.Log("⌨️ [键盘 D] -> 尝试防守");
+            OnDefendCmd();
+        }
+        // 按 Space 空过
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            Debug.Log("⌨️ [键盘 Space] -> 尝试空过");
+            OnSkipCmd();
         }
     }
+
     // --- 1. 战斗初始化 ---
-    public void StartBattle(DataManager.EventData evt)
+    public void StartBattle(DataManager.EnemyData enemyData)
     {
-        Debug.Log("⚔️ [Battle] 正在初始化战斗...");
+        Debug.Log("<color=yellow>⚔️ 战斗开始！单路死斗模式！</color>");
 
-        // 1. 强制打开面板 (双重保险)
-        if (BattlePanel != null) 
-        {
-            BattlePanel.SetActive(true);
-            Debug.Log("⚔️ [Battle] 面板已激活");
-        }
-        else Debug.LogError("❌ [Battle] BattlePanel 没拖！无法显示！");
+        // 初始化数值
+        PlayerUnitCount = GlobalConfig.Initial_Unit_Count;
+        EnemyUnitCount = GlobalConfig.Initial_Unit_Count;
 
-        enemyCenterHP = 5; 
+        PlayerFood = GlobalConfig.Player_Start_Food;
+        PlayerArmor = GlobalConfig.Player_Start_Armor;
         
-        // 2. 解析敌人
-        string enemyName = "未知敌军";
-        if (evt != null && !string.IsNullOrEmpty(evt.OptA_Res1_Data))
-        {
-            Debug.Log($"⚔️ [Battle] 解析敌人数据: {evt.OptA_Res1_Data}");
-            // 注意：这里如果 Split 失败会报错，加个 TryCatch
-            try {
-                if (evt.OptA_Res1_Data.StartsWith("ENEMY:")) {
-                    int eid = int.Parse(evt.OptA_Res1_Data.Split(':')[1]);
-                    var enemy = DataManager.Instance.GetEnemyByID(eid);
-                    if(enemy != null) enemyName = enemy.Name;
-                }
-            } catch { Debug.LogError("❌ [Battle] 敌人数据解析失败！"); }
-        }
+        EnemyFood = GlobalConfig.Enemy_Start_Food;
+        EnemyArmor = GlobalConfig.Enemy_Start_Armor;
+
+        turnCount = 0;
         
-        if (EnemyInfoText != null) EnemyInfoText.text = $"{enemyName} (中军生命: {enemyCenterHP})";
+        // 刷新UI (带防空检查)
+        UpdateUI();
 
-        // 3. 初始化卡组
-        if (DataManager.Instance == null) { Debug.LogError("❌ [Battle] DataManager 丢失！"); return; }
-        
-        Debug.Log("⚔️ [Battle] 正在洗牌...");
-        drawPile = new List<DataManager.CardData>(DataManager.Instance.GetStarterDeck());
-        Shuffle(drawPile);
-        handPile.Clear();
-        discardPile.Clear();
-
-        // 4. 初始化战线
-        Debug.Log("⚔️ [Battle] 重置战线...");
-        if (Lanes == null || Lanes.Length == 0) Debug.LogError("❌ [Battle] Lanes 数组是空的！没法打仗！");
-        else 
-        {
-            foreach(var lane in Lanes) 
-            {
-                if(lane != null) lane.ResetLane();
-            }
-        }
-
-        Debug.Log("⚔️ [Battle] 回合开始！");
-        StartTurn();
+        // 开始第一回合
+        StartCoroutine(StartTurnRoutine());
     }
-    // --- 2. 回合开始 (摸牌) ---
-        void StartTurn()
+
+    // --- 2. 回合流程 ---
+    IEnumerator StartTurnRoutine()
     {
-        GenerateEnemyMoves(); // 1. 先生成敌人意图
+        turnCount++;
+        isFirstAttackOfTurn = true; // 重置首攻标记
+        playerIsDefending = false;  // 重置防御姿态
+        enemyIsDefending = false;
+
+        // --- 资源恢复阶段 ---
+        Debug.Log($"\n>>> 第 {turnCount} 回合开始 <<<");
         
-        BattleLogText.text = ">>> 新回合：敌军意图已暴露！请部署卡牌。";
-        DrawCards(2); 
-        RefreshHandUI();
+        PlayerFood += GlobalConfig.Turn_Regen_Food;
+        PlayerArmor += GlobalConfig.Turn_Regen_Armor;
+        EnemyFood += GlobalConfig.Turn_Regen_Food;
+        EnemyArmor += GlobalConfig.Turn_Regen_Armor;
+        
+        Debug.Log($"[资源恢复] 玩家粮:{PlayerFood} 甲:{PlayerArmor} | 敌方粮:{EnemyFood} 甲:{EnemyArmor}");
+        UpdateUI();
+
+        // --- 玩家行动阶段 ---
+        isPlayerTurn = true;
+        LogToScreen("轮到你了！按 A进攻, D防守(耗1粮), Space空过");
+        
+        // 等待玩家操作 (通过按钮或键盘触发 On...Cmd)
+        yield return null; 
     }
-        void GenerateEnemyMoves()
+
+    // --- 3. 玩家指令 (Command) ---
+
+    // ⚔️ 进攻指令
+    public void OnAttackCmd()
     {
-        foreach (var lane in Lanes)
+        if (!isPlayerTurn) return;
+
+        // 计算伤害
+        int damage = CalculateDamage(PlayerUnitCount, EnemyArmor, enemyIsDefending, isFirstAttackOfTurn);
+        
+        // 扣血
+        EnemyUnitCount -= damage;
+        if (EnemyUnitCount < 0) EnemyUnitCount = 0;
+
+        LogToScreen($"⚔️ 你发起进攻！造成 {damage} 点伤害。(敌方剩余兵力: {EnemyUnitCount})");
+        
+        // 结算
+        isPlayerTurn = false;
+        isFirstAttackOfTurn = false; // 用过一次攻击了，首攻标记失效
+        UpdateUI();
+        
+        CheckVictoryCondition();
+    }
+
+    // 🛡️ 防守指令
+    public void OnDefendCmd()
+    {
+        if (!isPlayerTurn) return;
+
+        // 检查粮草
+        if (PlayerFood >= GlobalConfig.Defend_Cost_Food)
         {
-            // 简单 AI：随机生成 1~3 点战力
-            int power = UnityEngine.Random.Range(1, 4);
-            // 50% 概率攻击，50% 概率防守
-            bool isAttack = UnityEngine.Random.value > 0.5f;
+            PlayerFood -= GlobalConfig.Defend_Cost_Food;
+            playerIsDefending = true;
             
-            lane.SetEnemyIntent(power, isAttack);
-        }
-    }
-    void DrawCards(int count)
-    {
-        for (int i = 0; i < count; i++)
-        {
-            if (drawPile.Count == 0)
-            {
-                // 洗牌逻辑：弃牌堆回抽牌堆
-                if (discardPile.Count == 0) break; // 没牌了
-                drawPile.AddRange(discardPile);
-                discardPile.Clear();
-                Shuffle(drawPile);
-            }
-            handPile.Add(drawPile[0]);
-            drawPile.RemoveAt(0);
-        }
-    }
-
-    // --- 3. 玩家操作 (选牌 -> 选路) ---
-    // 由 BattleCardUI 调用
-    public void OnHandCardClicked(DataManager.CardData card)
-    {
-        selectedHandCard = card;
-        BattleLogText.text = $"选择了：{card.Name}";
-
-        // 遍历所有手牌UI，更新高亮状态
-        foreach (Transform child in HandContainer)
-        {
-            var ui = child.GetComponent<BattleCardUI>();
-            // 判断这个UI代表的卡是不是当前选中的卡
-            // 注意：这里需要 BattleCardUI 公开它的 myData，或者在 Setup 里存一下 ID 对比
-            // 简单做法：BattleCardUI 增加一个 public DataManager.CardData Data { get; private set; }
+            LogToScreen($"🛡️ 你消耗1粮进入防御姿态！(下一次受击减伤 {GlobalConfig.Defend_Mitigation})");
             
-            if (ui.Data == card) ui.SetSelected(true);
-            else ui.SetSelected(false);
-        }
-    }
-    // 由 BattleLaneUI 调用
-    public void OnLaneClicked(int laneIndex)
-    {
-        if (selectedHandCard == null) return;
-
-        // 部署卡牌到该路
-        bool success = Lanes[laneIndex].AddCard(selectedHandCard);
-        
-        if (success)
-        {
-            // 从手牌移除
-            handPile.Remove(selectedHandCard);
-            selectedHandCard = null;
-            RefreshHandUI(); // 刷新手牌显示
-        }
-    }
-
-    // --- 4. 战斗结算 (核心公式) ---
-    void OnEndTurnClicked()
-    {
-        StartCoroutine(ResolveBattleRoutine());
-    }
-
-    IEnumerator ResolveBattleRoutine()
-    {
-        Debug.Log("🚀 [结算] 协程启动！");
-
-        // 1. 检查 Log 组件
-        if (BattleLogText != null) 
-        {
-            BattleLogText.text = ">>> 开始战斗结算...";
-        }
-        else 
-        {
-            Debug.LogError("❌ [结算中断] BattleLogText 没拖！代码在这里死掉了！");
-            yield break; // 强制退出
-        }
-
-        yield return new WaitForSeconds(0.5f);
-
-        int totalDamageToEnemy = 0;
-
-        // 2. 检查 Lanes 数组
-        if (Lanes == null || Lanes.Length < 3)
-        {
-            Debug.LogError("❌ [结算中断] Lanes 数组没满3个！请去 Inspector 拖拽赋值！");
-            yield break;
-        }
-
-        // 依次结算 3 路
-        for (int i = 0; i < 3; i++)
-        {
-            Debug.Log($"⚔️ [结算] 正在处理第 {i} 路...");
-            
-            var lane = Lanes[i];
-            if (lane == null)
-            {
-                Debug.LogError($"❌ [结算中断] 第 {i} 路 (Element {i}) 是空的 (None)！");
-                yield break;
-            }
-
-            int myPower = lane.GetTotalPower();
-            int enemyPower = lane.EnemyPower;
-            
-            // ... (原有的结算逻辑) ...
-            // 为了测试，先简单打印一下
-            Debug.Log($"   -> 我方: {myPower} vs 敌方: {enemyPower}");
-
-            // 模拟伤害逻辑 (把你原来的逻辑粘回来，或者暂时只保留 Log)
-            if (lane.IsEnemyAttacking)
-            {
-                int netDamage = enemyPower - myPower;
-                if (netDamage > 0)
-                {
-                    if(BattleLogText) BattleLogText.text = $"{lane.LaneName}: 防守失败！受到 {netDamage} 伤害";
-                    ResourceManager.Instance.ChangeResource(104, -netDamage);
-                }
-                else
-                {
-                    if(BattleLogText) BattleLogText.text = $"{lane.LaneName}: 成功防御！";
-                }
-            }
-            else 
-            {
-                int netDamage = myPower - enemyPower;
-                if (netDamage > 0)
-                {
-                    int finalDmg = netDamage * netDamage;
-                    if(BattleLogText) BattleLogText.text = $"{lane.LaneName}: 突破防线！造成 {finalDmg} 伤害";
-                    totalDamageToEnemy += finalDmg;
-                }
-                else
-                {
-                    if(BattleLogText) BattleLogText.text = $"{lane.LaneName}: 攻击被阻挡。";
-                }
-            }
-
-            // 清理卡牌
-            discardPile.AddRange(lane.ClearLane());
-
-            yield return new WaitForSeconds(1f);
-        }
-
-        // 3. 结算完毕
-        Debug.Log($"🏁 [结算] 最终伤害: {totalDamageToEnemy}");
-        
-        enemyCenterHP -= totalDamageToEnemy;
-        if (EnemyInfoText != null) EnemyInfoText.text = $"敌军中军生命: {enemyCenterHP}";
-
-        if (enemyCenterHP <= 0)
-        {
-            EndBattle(true);
+            isPlayerTurn = false;
+            UpdateUI();
+            StartCoroutine(EnemyTurnRoutine()); // 玩家结束，进敌人回合
         }
         else
         {
-            // 敌方反击
-            ResourceManager.Instance.ChangeResource(104, -5);
-            if(BattleLogText) BattleLogText.text = "敌方反击！我军兵力 -5";
-            yield return new WaitForSeconds(1f);
-            StartTurn();
-        }
-    }
-    void EndBattle(bool isWin)
-    {
-        BattlePanel.SetActive(false);
-        string res = isWin ? "【大捷】敌方中军溃败！" : "【撤退】";
-        if(isWin) ResourceManager.Instance.ChangeResource(105, 50);
-        UIManager.Instance.ShowResult(res);
-    }
-
-    // --- 辅助 UI 刷新 ---
-    void RefreshHandUI()
-    {
-        foreach (Transform child in HandContainer) Destroy(child.gameObject);
-        foreach (var card in handPile)
-        {
-            GameObject go = Instantiate(CardPrefab, HandContainer);
-            go.GetComponent<BattleCardUI>().Setup(card);
+            LogToScreen("❌ 粮草不足，无法防守！");
         }
     }
 
-    void Shuffle<T>(List<T> list)
+    // ⏭️ 空过指令
+    public void OnSkipCmd()
     {
-        for (int i = 0; i < list.Count; i++)
+        if (!isPlayerTurn) return;
+        
+        LogToScreen("💨 你选择了空过，保留资源。");
+        isPlayerTurn = false;
+        StartCoroutine(EnemyTurnRoutine());
+    }
+
+    // --- 4. 敌人回合 (简单的 AI) ---
+    IEnumerator EnemyTurnRoutine()
+    {
+        LogToScreen("Thinking... 敌方思考中");
+        yield return new WaitForSeconds(1.0f); // 模拟思考时间
+
+        // 简单 AI：如果有粮就 50% 概率防守，否则进攻
+        bool enemyDefends = (EnemyFood >= 1 && Random.value > 0.5f);
+
+        if (enemyDefends)
         {
-            T temp = list[i];
-            int randomIndex = UnityEngine.Random.Range(i, list.Count);
-            list[i] = list[randomIndex];
-            list[randomIndex] = temp;
+            EnemyFood -= 1;
+            enemyIsDefending = true;
+            LogToScreen("🛡️ 敌方消耗粮草，筑起了防线！");
         }
+        else
+        {
+            // 敌人进攻
+            // 注意：这里简单模拟，敌人如果是后手，它也算它自己的“回合首攻”，但在当前流程里，
+            // 它是对玩家发起攻击。我们可以复用公式，但要反过来传参。
+            // (注：严格来说"首攻无视护甲"通常指进攻方回合，这里简化处理)
+            
+            int damage = CalculateDamage(EnemyUnitCount, PlayerArmor, playerIsDefending, true);
+            PlayerUnitCount -= damage;
+            if (PlayerUnitCount < 0) PlayerUnitCount = 0;
+            
+            LogToScreen($"⚔️ 敌方发起进攻！对你造成 {damage} 点伤害。");
+        }
+
+        UpdateUI();
+        CheckVictoryCondition();
+        
+        // 如果双方都活着，进下一回合
+        if (PlayerUnitCount > 0 && EnemyUnitCount > 0)
+        {
+            StartCoroutine(StartTurnRoutine());
+        }
+    }
+
+    // --- 5. 伤害计算公式 ---
+    int CalculateDamage(int attackerPower, int defenderArmor, bool isDefending, bool ignoreMitigation)
+    {
+        // 1. 基础伤害 = 兵力 * 系数
+        float rawDamage = attackerPower * GlobalConfig.Attack_Base_Mult;
+
+        // 2. 护甲减免 (每1点甲抵消1点伤，示例逻辑)
+        // 规则：如果是首攻 (ignoreMitigation)，可能无视护甲提供的额外加成，
+        // 但这里我们先按你的需求：首攻无视"守"指令的减伤，还是无视"盾"资源？
+        // 根据你之前的描述：进攻方首回合默认不受...加持 -> 应该是无视"盾"值。
+        
+        int armorReduction = defenderArmor; 
+        if (ignoreMitigation) 
+        {
+            // 首攻：无视盾的减伤 (或者减半，看你具体规则，这里先设为无视)
+            armorReduction = 0; 
+            Debug.Log("⚡ [首攻] 无视护甲！");
+        }
+
+        float finalDamage = rawDamage - armorReduction;
+
+        // 3. "守"指令的额外减伤
+        if (isDefending)
+        {
+            finalDamage -= GlobalConfig.Defend_Mitigation;
+            Debug.Log("🛡️ [防守] 触发减伤！");
+        }
+
+        return (int)Mathf.Max(0, finalDamage);
+    }
+
+    // --- 6. 胜利判定 ---
+    void CheckVictoryCondition()
+    {
+        if (EnemyUnitCount <= 0)
+        {
+            LogToScreen("<color=green>🏆 敌军全灭！你赢了！</color>");
+            StopAllCoroutines(); // 停止回合循环
+        }
+        else if (PlayerUnitCount <= 0)
+        {
+            LogToScreen("<color=red>💀 全军覆没... 你输了。</color>");
+            StopAllCoroutines();
+        }
+        else if (isPlayerTurn == false) // 如果还没分胜负且玩家操作完了，进敌人回合
+        {
+             if(!playerIsDefending) StartCoroutine(EnemyTurnRoutine());
+             // 注意：如果是 AttackCmd 调用的检查，上面已经处理了切回合逻辑，
+             // 这里主要是防止逻辑重复。通常 CheckVictory 只负责检查死没死。
+             // 简便起见，让 AttackCmd 自己去调切回合，CheckVictory 只报结果。
+        }
+    }
+
+    // --- 辅助：UI 更新 (带防空) ---
+    void UpdateUI()
+    {
+        if (PlayerResourceText != null)
+            PlayerResourceText.text = $"粮: {PlayerFood}\n甲: {PlayerArmor}\n兵: {PlayerUnitCount}";
+            
+        if (EnemyResourceText != null)
+            EnemyResourceText.text = $"粮: {EnemyFood}\n甲: {EnemyArmor}\n兵: {EnemyUnitCount}";
+    }
+
+    void LogToScreen(string msg)
+    {
+        Debug.Log(msg); // 打印到 Console
+        if (BattleLogText != null) BattleLogText.text = msg; // 如果有UI也显示
     }
 }
