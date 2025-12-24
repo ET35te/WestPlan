@@ -1,6 +1,10 @@
-﻿ID,Name,Type,SubType,Cost_Food,Cost_Armor,Power,EffectID,Effect_Val,Description
-6001,辅兵,Unit,Auxiliary,0,0,1,None,,基础单位。虽然弱小，但也是肉。
-6002,正规军,Unit,Regular,0,0,2,None,,受过训练的汉军士兵。
-6003,精锐步兵,Unit,Elite,0,0,3,None,,身披重甲的精锐，中流砥柱。
-6004,急行军,Strategy,Tactic,1,1,0,DMG_Enemy,2,本回合该战线必定先手攻击。(未实装)
-6005,医疗补给,Strategy,Tactic,1,1,0,ADD_Food,2,恢复该战线单位的状态。(未实装)
+﻿ID,Name,Type,SubType,Cost_Food,Cost_Armor,Power,Effect_ID,Effect_Val,Description
+1001,轻步兵,Unit,Basic,1,0,3,None,0,基础步兵，消耗1粮
+1002,铁甲卫,Unit,Basic,1,1,4,None,0,消耗1粮1甲，攻守兼备
+1003,虎豹骑,Unit,Elite,3,0,8,None,0,精锐骑兵，消耗巨大但战力惊人
+2001,屯田,Strategy,Buff,0,0,0,ADD_RES,2,获得2点粮草
+2002,急行军,Strategy,Draw,1,0,0,DRAW_SELF,2,消耗1粮，抽2张牌
+3001,劫营,Strategy,Interference,0,0,0,STEAL_RES,1,偷取敌方1粮1甲
+3002,缴械,Strategy,Counter,1,0,0,DISABLE_ATK,1,敌方下回合无法攻击
+3003,地震,Strategy,AOE,2,0,0,AOE_EARTHQUAKE,30,全场受到当前兵力30%的伤害
+3004,破釜沉舟,Strategy,Formation,0,0,0,FORM_NO_RETREAT,0,阵法：若粮草为0，伤害翻倍

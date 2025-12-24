@@ -421,6 +421,7 @@ MonoBehaviour:
   GlobalQuitToTitleBtn: {fileID: 0}
   ResourceInfoText: {fileID: 0}
   EventWindow: {fileID: 0}
+  SceneBattleManager: {fileID: 0}
 --- !u!114 &1303243786 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 1579082410540334824, guid: 70632ad13227d0846a4cdd0775f67d3f, type: 3}
@@ -539,6 +540,8 @@ MonoBehaviour:
   IsFantasyLine: 0
   RandomEventsPerNode: 3
   CurrentEventCount: 0
+  GlobalFoodStock: 10
+  GlobalArmorStock: 5
 --- !u!114 &1735444571
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -551,8 +554,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0ee802551c69b8e4a8ed6e34f11797cd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Belief: 0
-  Grain: 0
+  Belief: 100
+  Grain: 20
   Water: 0
   Troops: 0
   Money: 0

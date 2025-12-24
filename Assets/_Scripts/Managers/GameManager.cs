@@ -39,6 +39,10 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         // 游戏启动等待UI调用 StartNewGame 或 LoadGame
+        if (ResourceManager.Instance != null)
+        {
+            ResourceManager.Instance.OnResourceDepleted += HandleResourceDepletion;
+        }
     }
 
     // --- 核心流程 1: 处理事件结果后的跳转 ---
@@ -277,5 +281,29 @@ public class GameManager : MonoBehaviour
         
         PlayerPrefs.DeleteKey("HasSave"); 
         UIManager.Instance.ShowEnding(endText);
+    }
+    public int GlobalFoodStock = 10;  // 初始给点低保
+    public int GlobalArmorStock = 5;
+
+    // 事件系统调用这个方法来增减资源
+    public void ModifyGlobalResource(int foodDelta, int armorDelta)
+    {
+        GlobalFoodStock += foodDelta;
+        GlobalArmorStock += armorDelta;
+        
+        // 防止负数
+        if(GlobalFoodStock < 0) GlobalFoodStock = 0;
+        if(GlobalArmorStock < 0) GlobalArmorStock = 0;
+    }
+    private void HandleResourceDepletion(string reason)
+    {
+        TriggerEnding(reason);
+    }
+    private void OnDestroy()
+    {
+        if (ResourceManager.Instance != null)
+        {
+            ResourceManager.Instance.OnResourceDepleted -= HandleResourceDepletion;
+        }
     }
 }

@@ -3,7 +3,18 @@ guid: 02a3e1122f6b4b24080f37d7e291922c
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - Text_Player_Food: {instanceID: 0}
+  - Text_Player_Armor: {instanceID: 0}
+  - Text_Player_Unit: {instanceID: 0}
+  - Text_Enemy_Unit: {instanceID: 0}
+  - BattleLogText: {instanceID: 0}
+  - AttackBtn: {instanceID: 0}
+  - DefendBtn: {instanceID: 0}
+  - SkipBtn: {instanceID: 0}
+  - ConfirmPlayCardBtn: {instanceID: 0}
+  - HandAreaTransform: {instanceID: 0}
+  - CardPrefab: {fileID: 2794496835724712747, guid: 22c6197fe99f2fc478f64a3026d6ce08, type: 3}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 
