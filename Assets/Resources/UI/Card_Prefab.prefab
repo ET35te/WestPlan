@@ -207,7 +207,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 54d38f5765f452c4389f59f4eb55696c, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 24bc1fa12d0d7904f81ab6de7d402683, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -239,9 +239,9 @@ MonoBehaviour:
   m_Transition: 1
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
-    m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
-    m_PressedColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 1}
-    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
+    m_HighlightedColor: {r: 1, g: 0.96454066, b: 0.020754695, a: 1}
+    m_PressedColor: {r: 1, g: 0.88825697, b: 0, a: 1}
+    m_SelectedColor: {r: 1, g: 0.88954484, b: 0, a: 1}
     m_DisabledColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 0.5019608}
     m_ColorMultiplier: 1
     m_FadeDuration: 0.1
@@ -273,11 +273,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36f37f66315cd594bb768abbb8e76bc2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  Data:
+    ID: 0
+    Name: 
+    Type: 0
+    SubType: 0
+    Cost_Food: 0
+    Cost_Armor: 0
+    Power: 0
+    Effect_ID: 
+    Effect_Val: 0
+    Description: 
   NameText: {fileID: 8989158508464710029}
-  PowerText: {fileID: 4586498598605019627}
+  CostText: {fileID: 0}
   DescText: {fileID: 7070641827335770641}
-  ClickBtn: {fileID: 6685359960949566376}
-  BorderImage: {fileID: 5437022652019737159}
+  CardBackground: {fileID: 5437022652019737159}
 --- !u!114 &-7822018823096494592
 MonoBehaviour:
   m_ObjectHideFlags: 0

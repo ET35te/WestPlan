@@ -41,7 +41,7 @@ public class GameManager : MonoBehaviour
         // 监听资源耗尽导致的游戏结束
         if (ResourceManager.Instance != null)
         {
-            ResourceManager.Instance.OnResourceDepleted += HandleResourceDepletion;
+            ResourceManager.Instance.OnGameEndingTriggered += HandleResourceDepletion;
         }
     }
     public void StartNewGame()
@@ -238,21 +238,46 @@ public class GameManager : MonoBehaviour
         GlobalFoodStock = food;
         GlobalArmorStock = armor;
     }
-
     private string ApplyMultiResources(string dataStr)
     {
+        // 防空检查
         if (string.IsNullOrEmpty(dataStr) || dataStr == "0:0") return "";
+        
         string logBuilder = "";
-        string[] entries = dataStr.Split(';');
+        string[] entries = dataStr.Split(';'); // 分割不同资源组
+
         foreach (string entry in entries)
         {
             if (string.IsNullOrWhiteSpace(entry)) continue;
-            string[] parts = entry.Split(':');
-            if (parts.Length == 2)
+
+            string[] parts = entry.Split(':'); // 分割 ID 和 数值
+
+            // --- 🔥 修复开始：安全校验 ---
+            if (parts.Length != 2)
             {
-                int id = int.Parse(parts[0]);
-                int val = int.Parse(parts[1]);
-                if (val != 0)
+                Debug.LogError($"❌ 表格格式错误，跳过解析: '{entry}' (完整数据: {dataStr})");
+                continue;
+            }
+
+            // 尝试解析 ID
+            if (!int.TryParse(parts[0], out int id))
+            {
+                Debug.LogError($"❌ 资源ID无法解析为数字: '{parts[0]}' (完整数据: {entry})");
+                continue;
+            }
+
+            // 尝试解析 数值
+            if (!int.TryParse(parts[1], out int val))
+            {
+                Debug.LogError($"❌ 资源数值无法解析为数字: '{parts[1]}' (完整数据: {entry})");
+                continue;
+            }
+            // --- 🔥 修复结束 ---
+
+            // 如果解析成功，继续执行原来的逻辑
+            if (val != 0)
+            {
+                if (ResourceManager.Instance != null)
                 {
                     ResourceManager.Instance.ChangeResource(id, val);
                     string resName = ResourceManager.Instance.GetResName(id);
@@ -296,10 +321,6 @@ public class GameManager : MonoBehaviour
 
         PlayerPrefs.SetInt("Save_Belief", ResourceManager.Instance.Belief);
         PlayerPrefs.SetInt("Save_Grain", ResourceManager.Instance.Grain);
-        PlayerPrefs.SetInt("Save_Water", ResourceManager.Instance.Water);
-        PlayerPrefs.SetInt("Save_Troops", ResourceManager.Instance.Troops);
-        PlayerPrefs.SetInt("Save_Money", ResourceManager.Instance.Money);
-        PlayerPrefs.SetInt("Save_Horses", ResourceManager.Instance.Horses);
         PlayerPrefs.SetInt("Save_Armor", ResourceManager.Instance.Armor);
 
         PlayerPrefs.SetInt("Save_Month", CurrentMonth);
@@ -317,10 +338,6 @@ public class GameManager : MonoBehaviour
 
         ResourceManager.Instance.Belief = PlayerPrefs.GetInt("Save_Belief");
         ResourceManager.Instance.Grain = PlayerPrefs.GetInt("Save_Grain");
-        ResourceManager.Instance.Water = PlayerPrefs.GetInt("Save_Water");
-        ResourceManager.Instance.Troops = PlayerPrefs.GetInt("Save_Troops");
-        ResourceManager.Instance.Money = PlayerPrefs.GetInt("Save_Money");
-        ResourceManager.Instance.Horses = PlayerPrefs.GetInt("Save_Horses");
         ResourceManager.Instance.Armor = PlayerPrefs.GetInt("Save_Armor");
 
         CurrentMonth = PlayerPrefs.GetInt("Save_Month");
@@ -370,7 +387,7 @@ public class GameManager : MonoBehaviour
     {
         if (ResourceManager.Instance != null)
         {
-            ResourceManager.Instance.OnResourceDepleted -= HandleResourceDepletion;
+            ResourceManager.Instance.OnGameEndingTriggered -= HandleResourceDepletion;
         }
     }
 }

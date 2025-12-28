@@ -1,2 +1,2 @@
 ﻿ID,IsPeaceful,Title,Context,OptA_Text,OptA_Res1_Txt,OptA_Res1_Data,OptA_Res2_Rate,OptA_Res2_Txt,OptA_Res2_Data,OptB_Text,OptB_Res1_Txt,OptB_Res1_Data,OptB_Res2_Rate,OptB_Res2_Txt,OptB_Res2_Data,Effect_Type,OptB_Condition
-1000,FALSE,多资源测试,这是一个测试多重资源变动的事件。,双重奖励,获得粮草和信念,ENEMY:2001,30,倒霉丢钱受伤,105:-50;104:-20,步兵换马,消耗兵力获得马匹,104:-10;106:5,0,无,0:00,,
+1000,FALSE,多资源测试,这是一个测试多重资源变动的事件。,双重奖励,获得粮草和信念,ENEMY:2001,30,倒霉丢钱受伤,102:-50;101:-20,步兵换马,消耗兵力获得马匹,101:-10;102:5,0,无,0:00,,

@@ -7,47 +7,78 @@ public class ResourceManager : MonoBehaviour
 {
     public static ResourceManager Instance { get; private set; }
     public event Action OnResourcesChanged;
-    public event Action<string> OnResourceDepleted;
+    // 只有一个死亡事件了，因为资源合并了
+    public event Action<string> OnGameEndingTriggered; 
 
-    public int Belief = 80;
-    public int Grain = 200;
-    public int Water = 100;
-    public int Troops = 500;
-    public int Money = 100;
-    public int Horses = 20;
-    public int Armor = 30;
+    [Header("--- 核心铁三角 ---")]
+    public int Belief = 100; // 原来的“兵力”和“信念”合并，作为HP
+    public int Grain = 20;   // 行动资源
+    public int Armor = 5;    // 护甲储备 (修补工具/盾牌库存)
+
+    // 删除：Water, Troops, Money, Horses
 
     private void Awake()
     {
-        if (Instance != null && Instance != this) { Destroy(this.gameObject); return; }
-        else { Instance = this; DontDestroyOnLoad(this.gameObject); }
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        Instance = this; 
+        DontDestroyOnLoad(gameObject);
     }
 
     public void ResetResources()
     {
-        Belief = 80; Grain = 200; Water = 100; Troops = 500; Money = 100; Horses = 20; Armor = 30;
+        Belief = 100; 
+        Grain = 20; 
+        Armor = 5; 
         OnResourcesChanged?.Invoke();
     }
 
     public void ChangeResource(int id, int amount)
     {
-        // ... (保留你原来的 switch case 逻辑) ...
         switch (id)
         {
-            case 101: Belief += amount; if (Belief <= 0) OnResourceDepleted?.Invoke("Death_Belief"); break;
-            case 102: Grain += amount; break;
-            case 107: Armor += amount; break;
-                // ... 其他资源 ...
+            case 101: // 信念 (HP)
+                Belief += amount; 
+                if (Belief <= 0) OnGameEndingTriggered?.Invoke("Death_Belief"); 
+                break;
+
+            case 102: // 粮草 (Cost)
+                Grain += amount;
+                // 粮草允许为负吗？通常不允许，这里只做加减，检查逻辑在 GM/Battle
+                if (Grain < 0) Grain = 0; 
+                break;
+
+            case 103: // 盾/甲 (Stock)
+                Armor += amount; 
+                if (Armor < 0) Armor = 0;
+                break;
+                
+            // 删除其他 case
         }
         OnResourcesChanged?.Invoke();
     }
-
-    // 🔥 新增：给 GM 调用的强制刷新
     public void ForceUpdateUI()
     {
         OnResourcesChanged?.Invoke();
     }
+    public string GetResName(int id)
+    {
+        switch(id)
+        {
+            case 101: return "信念";
+            case 102: return "粮草";
+            case 103: return "盾甲";
+            default: return "未知";
+        }
+    }
 
-    public string GetResName(int id) { return "资源"; } // 简写
-    public int GetResourceValue(int id) { return 0; } // 简写
+    public int GetResourceValue(int id)
+    {
+        switch(id)
+        {
+            case 101: return Belief;
+            case 102: return Grain;
+            case 103: return Armor;
+            default: return 0;
+        }
+    }
 }

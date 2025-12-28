@@ -14,34 +14,40 @@ public class BattleManager : MonoBehaviour
     public int VictoryLootArmor = 1;
 
     // ==============================
-    // 👉 UI 引用 (必须在 Inspector 手动拖拽)
+    // 👉 UI 引用
     // ==============================
     [Header("--- UI 引用 (请手动拖拽) ---")]
     public TMP_Text Text_Player_Food;
     public TMP_Text Text_Player_Armor;
-    public TMP_Text Text_Player_Unit;
+    public TMP_Text Text_Player_Unit; // 现在代表信念/血量
     public TMP_Text Text_Enemy_Unit;
     public TMP_Text BattleLogText;
+
+    [Header("--- 🔥 新增 UI ---")]
+    public TMP_Text Text_Enemy_Intent; // 显示敌人意图
 
     public Button AttackBtn;
     public Button DefendBtn;
     public Button SkipBtn;
-    
-    // 🔥 报错点2修复：必须有这个按钮变量
     public Button ConfirmPlayCardBtn; 
 
-    [Header("--- 容器 (请手动拖拽) ---")]
+    [Header("--- 容器 ---")]
     public Transform HandAreaTransform;
     public GameObject CardPrefab; 
 
-    [Header("--- 战斗数据 (自动显示) ---")]
-    public int PlayerUnitCount;
+    [Header("--- 战斗数据 ---")]
+    public int PlayerUnitCount; // 对应：信念 (Belief)
+    public int PlayerFood;      // 对应：战斗内可用粮 (Grain)
+    public int PlayerArmor;     // 对应：战斗内叠加甲 (Armor)
+    
     public int EnemyUnitCount;
-    public int PlayerFood, PlayerArmor;
     public int EnemyFood = 5; 
     public int EnemyArmor = 2;
 
-    private int stockFood, stockArmor;
+    // 库存数据 (从 ResourceManager 读来的)
+    private int stockFood;
+    private int stockArmor;
+
     public List<DataManager.CardData> DrawPile = new List<DataManager.CardData>();
     public List<DataManager.CardData> HandPile = new List<DataManager.CardData>();
     public List<DataManager.CardData> DiscardPile = new List<DataManager.CardData>();
@@ -49,24 +55,25 @@ public class BattleManager : MonoBehaviour
     private BattleCardUI currentSelectedCardUI;
     private bool isPlayerTurn;
     private int turnCount = 0;
+    
+    // 事件广播：解耦架构，通知 UI 打开结算面板
+    public System.Action<string> OnBattleEnded;
 
     void Awake()
     {
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        // 如果 UI 管理器存在，先隐藏战斗面板，防止穿帮
         if (UIManager.Instance != null && UIManager.Instance.BattlePanel != null)
             UIManager.Instance.BattlePanel.SetActive(false);
     }
 
     void Start()
     {
-        // 🛡️ 报错点2,3,4,5 修复：绑定按钮事件
         if (ConfirmPlayCardBtn != null)
         {
             ConfirmPlayCardBtn.onClick.RemoveAllListeners();
-            ConfirmPlayCardBtn.onClick.AddListener(OnConfirmPlayCardClicked); // 👈 这里需要下面的定义
+            ConfirmPlayCardBtn.onClick.AddListener(OnConfirmPlayCardClicked);
             ConfirmPlayCardBtn.interactable = false;
             UpdateBtnText("请选牌");
         }
@@ -76,35 +83,35 @@ public class BattleManager : MonoBehaviour
         if (SkipBtn) SkipBtn.onClick.AddListener(OnSkipCmd);
     }
 
-    // =========================================================
-    // 🔥 报错点6 修复：UIManager 调用的入口
-    // =========================================================
     public void StartBattle(DataManager.EnemyData enemyData)
     {
-        // 1. 确保 UI 切换到战斗状态
         if (UIManager.Instance) UIManager.Instance.SwitchState(UIManager.UIState.Battle);
 
-        // 2. 读取库存
-        if (GameManager.Instance != null) { 
-            stockFood = GameManager.Instance.GlobalFoodStock; 
-            stockArmor = GameManager.Instance.GlobalArmorStock; 
-        } else { 
-            stockFood = 10; stockArmor = 5; 
+        // 1. 读取全局资源 (适配铁三角系统)
+        if (ResourceManager.Instance != null) {
+            stockFood = ResourceManager.Instance.Grain;
+            stockArmor = ResourceManager.Instance.Armor;
+            PlayerUnitCount = ResourceManager.Instance.Belief; // 信念即血量
+        }
+        else {
+            // 保底逻辑
+            stockFood = 10; stockArmor = 5; PlayerUnitCount = 100;
         }
 
-        // 3. 初始化数值
-        PlayerFood = 0; PlayerArmor = 0; PlayerUnitCount = DefaultUnitCount;
-        EnemyFood = 5; EnemyArmor = 2;
+        // 2. 初始化战斗内数值
+        PlayerFood = 0; 
+        PlayerArmor = 0; 
+        // 注意：PlayerUnitCount 已经在上面读取了全局信念，不要重置为 DefaultUnitCount
 
         if (enemyData != null) {
             EnemyUnitCount = enemyData.Power;
-            LogToScreen($"遭遇：{enemyData.Name} (兵力{EnemyUnitCount})");
+            LogToScreen($"遭遇：{enemyData.Name} (战力{EnemyUnitCount})");
         } else {
-            EnemyUnitCount = DefaultUnitCount;
+            EnemyUnitCount = 10;
             LogToScreen("遭遇伏兵！");
         }
 
-        // 4. 洗牌发牌
+        // 3. 准备牌堆
         InitializeDeck(); 
         ShuffleDeck();
         ClearHandUI();
@@ -115,86 +122,54 @@ public class BattleManager : MonoBehaviour
     }
 
     // =========================================================
-    // 🔥 报错点1 修复：BattleCardUI 调用的方法
+    // ⚔️ 指令逻辑 (含绝粮反击修复)
     // =========================================================
-    public void OnHandCardClicked(BattleCardUI cardUI)
-    {
-        if (!isPlayerTurn) return;
-
-        // 如果点击已选中的 -> 取消选中
-        if (currentSelectedCardUI == cardUI)
-        {
-            DeselectAll();
-            return;
-        }
-
-        // 1. 重置旧卡状态
-        if (currentSelectedCardUI != null) currentSelectedCardUI.UpdateState(false);
-
-        // 2. 选中新卡
-        currentSelectedCardUI = cardUI;
-        currentSelectedCardUI.UpdateState(true); // 变黄
-
-        // 3. 激活按钮
-        if (ConfirmPlayCardBtn != null)
-        {
-            ConfirmPlayCardBtn.interactable = true;
-            UpdateBtnText("确认出牌");
-        }
-    }
-
-    // =========================================================
-    // 🔥 报错点2 修复：确认出牌逻辑
-    // =========================================================
-    void OnConfirmPlayCardClicked()
-    {
-        if (currentSelectedCardUI == null) return;
-
-        DataManager.CardData card = currentSelectedCardUI.Data;
-
-        // 1. 资源检查
-        if (PlayerFood < card.Cost_Food || PlayerArmor < card.Cost_Armor)
-        {
-            LogToScreen($"<color=red>资源不足！需 粮{card.Cost_Food} / 甲{card.Cost_Armor}</color>");
-            return;
-        }
-
-        // 2. 扣除消耗
-        PlayerFood -= card.Cost_Food;
-        PlayerArmor -= card.Cost_Armor;
-
-        // 3. 执行效果
-        ApplyCardEffect(card);
-
-        // 4. 移出逻辑
-        HandPile.Remove(card);
-        DiscardPile.Add(card);
-        Destroy(currentSelectedCardUI.gameObject);
-
-        // 5. 收尾
-        DeselectAll();
-        UpdateUI();
-        CheckVictoryCondition();
-    }
-
-    // =========================================================
-    // 🔥 报错点3,4,5 修复：基础指令
-    // =========================================================
+    
     void OnAttackCmd() 
     { 
-        if (!isPlayerTurn || PlayerFood < 1) return; 
-        PlayerFood -= 1; 
-        EnemyUnitCount -= PlayerUnitCount; // 简单伤害计算
-        LogToScreen("全军突击！"); 
+        if (!isPlayerTurn) return; 
+
+        // --- 🔥 修复：绝粮死锁逻辑 ---
+        if (PlayerFood >= 1) 
+        {
+            // 正常攻击
+            PlayerFood -= 1; 
+            int damage = 5; // 基础伤害 (可以改为 PlayerUnitCount / 10 等公式)
+            EnemyUnitCount -= damage;
+            LogToScreen($"全军突击！造成 {damage} 点伤害"); 
+        }
+        else
+        {
+            // 绝境反击：扣血攻击
+            int hpCost = Mathf.Max(1, Mathf.FloorToInt(PlayerUnitCount * 0.1f)); // 扣10%信念
+            PlayerUnitCount -= hpCost;
+            
+            int weakDamage = 2; // 虚弱伤害
+            EnemyUnitCount -= weakDamage;
+
+            LogToScreen($"<color=red>断粮强攻！信念-{hpCost}，造成 {weakDamage} 点伤害</color>");
+        }
+
         EndPlayerTurn(); 
     }
 
     void OnDefendCmd() 
     { 
-        if (!isPlayerTurn || PlayerFood < 1) return; 
-        PlayerFood -= 1; 
-        PlayerArmor += 2; 
-        LogToScreen("修筑工事 +2甲"); 
+        if (!isPlayerTurn) return; 
+
+        if (PlayerFood >= 1) 
+        {
+            PlayerFood -= 1; 
+            PlayerArmor += 5; // 正常防御
+            LogToScreen("修筑工事 +5甲"); 
+        }
+        else
+        {
+            // 疲惫防御：不扣血，但加甲很少
+            PlayerArmor += 2; 
+            LogToScreen($"<color=red>疲惫防守 +2甲 (粮草不足)</color>");
+        }
+
         EndPlayerTurn(); 
     }
 
@@ -205,16 +180,66 @@ public class BattleManager : MonoBehaviour
         EndPlayerTurn(); 
     }
 
+    public void OnHandCardClicked(BattleCardUI cardUI)
+    {
+        if (!isPlayerTurn) return;
+
+        // 验资
+        if (PlayerFood < cardUI.Data.Cost_Food || PlayerArmor < cardUI.Data.Cost_Armor)
+        {
+            LogToScreen($"<color=red>资源不足！(需 粮{cardUI.Data.Cost_Food} 甲{cardUI.Data.Cost_Armor})</color>");
+            return; 
+        }
+
+        // 选中逻辑
+        if (currentSelectedCardUI == cardUI)
+        {
+            DeselectAll();
+            return;
+        }
+
+        if (currentSelectedCardUI != null) currentSelectedCardUI.UpdateState(false);
+        currentSelectedCardUI = cardUI;
+        currentSelectedCardUI.UpdateState(true); 
+
+        if (ConfirmPlayCardBtn != null)
+        {
+            ConfirmPlayCardBtn.interactable = true;
+            UpdateBtnText("确认出牌");
+        }
+    }
+
+    void OnConfirmPlayCardClicked()
+    {
+        if (currentSelectedCardUI == null) return;
+        DataManager.CardData card = currentSelectedCardUI.Data;
+
+        if (PlayerFood < card.Cost_Food || PlayerArmor < card.Cost_Armor) return;
+
+        PlayerFood -= card.Cost_Food;
+        PlayerArmor -= card.Cost_Armor;
+
+        ApplyCardEffect(card);
+
+        HandPile.Remove(card);
+        DiscardPile.Add(card);
+        Destroy(currentSelectedCardUI.gameObject);
+
+        DeselectAll();
+        UpdateUI();
+        CheckVictoryCondition();
+    }
+
     // =========================================================
-    // 内部逻辑 (保持不变)
+    // 🔄 回合与结算
     // =========================================================
 
     void ApplyCardEffect(DataManager.CardData card)
     {
-        // ... (卡牌效果解析逻辑) ...
         if (card.Type == DataManager.CardType.Unit) {
+            // 注意：现在 Unit 类型可能代表加信念/回血
             PlayerUnitCount += card.Power;
-            LogToScreen($"💂 增援 +{card.Power}");
+            LogToScreen($"信念恢复 +{card.Power}");
             return;
         }
         switch (card.Effect_ID) {
@@ -222,36 +247,49 @@ public class BattleManager : MonoBehaviour
             case "ADD_ARMOR": PlayerArmor += card.Effect_Val; break;
             case "DRAW_SELF": DrawCards(card.Effect_Val); break;
             case "DMG_ENEMY": EnemyUnitCount -= card.Effect_Val; break;
-            // ... 其他 case 可以按需补充
-            default: EnemyUnitCount -= card.Effect_Val; break; // 保底
+            default: EnemyUnitCount -= card.Effect_Val; break;
         }
     }
 
     void CheckVictoryCondition()
     {
+        // 胜利
         if (EnemyUnitCount <= 0)
         {
             EnemyUnitCount = 0;
             LogToScreen("<color=green>🏆 胜利！</color>");
             StopAllCoroutines();
 
+            // 结算资源：库存 + 剩余行动力 + 战利品
             int finalFood = stockFood + PlayerFood + VictoryLootFood;
-            int finalArmor = stockArmor + PlayerArmor + VictoryLootArmor;
+            int finalArmor = stockArmor + PlayerArmor + VictoryLootArmor; // 假设护甲能带走一部分
+            int finalBelief = PlayerUnitCount; // 继承剩余信念
 
-            if (GameManager.Instance != null) {
-                GameManager.Instance.GlobalFoodStock = finalFood;
-                GameManager.Instance.GlobalArmorStock = finalArmor;
+            // 写回 ResourceManager (铁三角更新)
+            if (ResourceManager.Instance != null) {
+                ResourceManager.Instance.Grain = finalFood;
+                ResourceManager.Instance.Armor = finalArmor;
+                ResourceManager.Instance.Belief = finalBelief;
             }
 
-            if (UIManager.Instance != null) {
-                string msg = $"大获全胜！\n回收: 粮{finalFood} 甲{finalArmor}";
-                UIManager.Instance.ShowResult(msg);
-            }
+            // 广播胜利消息
+            string msg = $"大获全胜！\n信念:{finalBelief} 粮:{finalFood} 甲:{finalArmor}";
+            OnBattleEnded?.Invoke(msg);
         }
-        else if (PlayerUnitCount < 0)
+        // 失败 (信念耗尽)
+        else if (PlayerUnitCount <= 0)
         {
             StopAllCoroutines();
-            if (UIManager.Instance != null) UIManager.Instance.ShowEnding("兵败身死...");
+            if (ResourceManager.Instance != null)
+            {
+                // 确保归零以触发全局死亡事件
+                ResourceManager.Instance.ChangeResource(101, -9999); 
+            }
+            // 备用：如果没有 RM，就自己喊结束
+            else if (UIManager.Instance != null) 
+            {
+                UIManager.Instance.ShowEnding("信念崩塌，埋骨黄沙...");
+            }
         }
     }
 
@@ -260,11 +298,20 @@ public class BattleManager : MonoBehaviour
         turnCount++;
         isPlayerTurn = true;
         
-        // 简单的粮道模拟
+        // 补给逻辑：每回合从库存拿1粮1甲进场
         if (stockFood >= 1) { stockFood--; PlayerFood++; }
         if (stockArmor >= 1) { stockArmor--; PlayerArmor++; }
         
         LogToScreen($"第{turnCount}回合");
+        
+        // 🔥 计算并显示敌人意图
+        if (Text_Enemy_Intent != null)
+        {
+            // 预告：如果不防御，会受多少伤
+            int predictedDmg = Mathf.Max(0, EnemyUnitCount - PlayerArmor);
+            Text_Enemy_Intent.text = $"⚠️ 敌军意图: 攻击\n预计伤害: {predictedDmg}";
+        }
+
         DrawCards(1);
         DeselectAll();
         UpdateUI();
@@ -276,18 +323,34 @@ public class BattleManager : MonoBehaviour
         isPlayerTurn = false;
         DeselectAll();
         LogToScreen("敌方回合...");
+        
+        if (Text_Enemy_Intent != null) Text_Enemy_Intent.text = "⚔️ 敌军正在行动...";
+        
         yield return new WaitForSeconds(1.0f);
         
         if(EnemyUnitCount > 0) {
-            int dmg = Mathf.Max(1, EnemyUnitCount - PlayerArmor);
-            PlayerUnitCount -= dmg;
-            LogToScreen($"敌军造成 {dmg} 伤害");
+            // 简单伤害公式：敌人战力 - 玩家当前护甲
+            int dmg = Mathf.Max(0, EnemyUnitCount - PlayerArmor);
+            
+            if (dmg > 0) {
+                PlayerUnitCount -= dmg;
+                LogToScreen($"受到 {dmg} 点伤害！");
+            } else {
+                LogToScreen("完美防御！");
+            }
+
+            // 敌人回合结束，玩家护甲通常会衰减 (可选，这里暂时保留一半)
+            PlayerArmor = PlayerArmor / 2; 
         }
         
         UpdateUI();
         CheckVictoryCondition();
-        if(PlayerUnitCount >= 0 && EnemyUnitCount > 0) StartCoroutine(StartTurnRoutine());
+        if(PlayerUnitCount > 0 && EnemyUnitCount > 0) StartCoroutine(StartTurnRoutine());
     }
+
+    // =========================================================
+    // 辅助方法
+    // =========================================================
 
     void DeselectAll()
     {
@@ -301,7 +364,6 @@ public class BattleManager : MonoBehaviour
 
     void EndPlayerTurn() { isPlayerTurn = false; UpdateUI(); CheckVictoryCondition(); if(EnemyUnitCount > 0) StartCoroutine(EnemyTurnRoutine()); }
     
-    // 辅助方法
     void InitializeDeck() { DrawPile.Clear(); HandPile.Clear(); DiscardPile.Clear(); if (DataManager.Instance) DrawPile = DataManager.Instance.GetStarterDeck(); }
     void ShuffleDeck() { for (int i = 0; i < DrawPile.Count; i++) { var temp = DrawPile[i]; int r = Random.Range(i, DrawPile.Count); DrawPile[i] = DrawPile[r]; DrawPile[r] = temp; } }
     void ClearHandUI() { foreach (Transform t in HandAreaTransform) Destroy(t.gameObject); }
@@ -315,12 +377,21 @@ public class BattleManager : MonoBehaviour
         }
         UpdateUI();
     }
+    
     void UpdateUI() {
         if(Text_Player_Food) Text_Player_Food.text = $"{PlayerFood}";
         if(Text_Player_Armor) Text_Player_Armor.text = $"{PlayerArmor}";
-        if(Text_Player_Unit) Text_Player_Unit.text = $"{PlayerUnitCount}";
+        if(Text_Player_Unit) Text_Player_Unit.text = $"{PlayerUnitCount}"; // 显示信念
         if(Text_Enemy_Unit) Text_Enemy_Unit.text = $"{EnemyUnitCount}";
+
+        // 🔥 实时刷新意图 (比如玩家出了加甲牌，意图文字也要变)
+        if (Text_Enemy_Intent != null && isPlayerTurn)
+        {
+            int predictedDmg = Mathf.Max(0, EnemyUnitCount - PlayerArmor);
+            Text_Enemy_Intent.text = $"⚠️ 敌军意图: 攻击\n预计伤害: {predictedDmg}";
+        }
     }
+    
     void UpdateBtnText(string t) { if(ConfirmPlayCardBtn) { var txt = ConfirmPlayCardBtn.GetComponentInChildren<TMP_Text>(); if(txt) txt.text = t; } }
     void LogToScreen(string m) { Debug.Log(m); if (BattleLogText) BattleLogText.text = m; }
 }

@@ -21,7 +21,15 @@ public class BattleCardUI : MonoBehaviour
         // 简单拼装一下描述，比如 "粮1 甲0"
         if (CostText) CostText.text = $"<color=#FFCC00>粮{Data.Cost_Food}</color> <color=#ADD8E6>甲{Data.Cost_Armor}</color>";
         if (DescText) DescText.text = Data.Description;
-
+        if (CostText) 
+{
+    // 这行代码的意思是：粮(黄色) + 数值 + 空格 + 甲(蓝色) + 数值
+    CostText.text = $"<color=#FFD700>粮{Data.Cost_Food}</color>   <color=#ADD8E6>甲{Data.Cost_Armor}</color>";
+    
+    // 💡 必须开启 Rich Text：
+    // 请去 Unity 编辑器，选中 BattleCard_Prefab 里的 CostText 物体
+    // 在 Inspector 的 TextMeshPro 组件里，找到 "Extra Settings"，勾选 ✅ Rich Text
+}
         // 自动获取背景图用于变色
         if (CardBackground == null) CardBackground = GetComponent<Image>();
     }
