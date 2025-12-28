@@ -3,7 +3,9 @@ guid: cdd1d98121accac439a8907640b7ca8c
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - StartBtn: {fileID: 8780305036161535726, guid: 12d8fdb4891fb334d811a7cd8ed56d29, type: 3}
+  - QuitBtn: {fileID: 3069223733690944726, guid: 49dc8652687ccdf4f8ce73889e63ece1, type: 3}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

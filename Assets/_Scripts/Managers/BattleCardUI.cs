@@ -49,11 +49,16 @@ public class BattleCardUI : MonoBehaviour
     {
         if (CardBackground != null)
         {
-            // 选中变黄，没选中变白
-            CardBackground.color = isSelected ? Color.yellow : Color.white;
+            // 选中变绿 (或你喜欢的颜色)
+            CardBackground.color = isSelected ? new Color(0.8f, 1f, 0.8f) : Color.white;
         }
 
-        // 可选：选中时放大一点点
+        // 🔥 核心修改：位移反馈
+        // 没选中 y=0，选中了 y=30 (根据你的画布比例调整)
+        float targetY = isSelected ? 30f : 0f;
+        transform.localPosition = new Vector3(transform.localPosition.x, targetY, 0);
+        
+        // 稍微放大一点
         transform.localScale = isSelected ? Vector3.one * 1.1f : Vector3.one;
     }
 }

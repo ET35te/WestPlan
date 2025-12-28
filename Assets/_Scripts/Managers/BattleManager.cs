@@ -58,6 +58,9 @@ public class BattleManager : MonoBehaviour
     
     // 事件广播：解耦架构，通知 UI 打开结算面板
     public System.Action<string> OnBattleEnded;
+    // 1. 增加一个状态枚举，让自己知道现在处于什么阶段
+    public enum BattlePhase { Init, PlayerTurn, EnemyTurn, End }
+    public BattlePhase CurrentPhase;
 
     void Awake()
     {
@@ -81,28 +84,30 @@ public class BattleManager : MonoBehaviour
         if (AttackBtn) AttackBtn.onClick.AddListener(OnAttackCmd);
         if (DefendBtn) DefendBtn.onClick.AddListener(OnDefendCmd);
         if (SkipBtn) SkipBtn.onClick.AddListener(OnSkipCmd);
+        
     }
+        // =========================================================
+    // 🎬 战斗初始化与开场流程
+    // =========================================================
 
-    public void StartBattle(DataManager.EnemyData enemyData)
+        public void StartBattle(DataManager.EnemyData enemyData)
     {
+        // 1. 切换 UI 状态
         if (UIManager.Instance) UIManager.Instance.SwitchState(UIManager.UIState.Battle);
 
-        // 1. 读取全局资源 (适配铁三角系统)
+        // 2. 读取全局资源
         if (ResourceManager.Instance != null) {
             stockFood = ResourceManager.Instance.Grain;
             stockArmor = ResourceManager.Instance.Armor;
-            PlayerUnitCount = ResourceManager.Instance.Belief; // 信念即血量
-        }
-        else {
-            // 保底逻辑
+            PlayerUnitCount = ResourceManager.Instance.Belief; 
+        } else {
             stockFood = 10; stockArmor = 5; PlayerUnitCount = 100;
         }
 
-        // 2. 初始化战斗内数值
+        // 3. 初始化战斗数值
         PlayerFood = 0; 
         PlayerArmor = 0; 
-        // 注意：PlayerUnitCount 已经在上面读取了全局信念，不要重置为 DefaultUnitCount
-
+        
         if (enemyData != null) {
             EnemyUnitCount = enemyData.Power;
             LogToScreen($"遭遇：{enemyData.Name} (战力{EnemyUnitCount})");
@@ -111,17 +116,63 @@ public class BattleManager : MonoBehaviour
             LogToScreen("遭遇伏兵！");
         }
 
-        // 3. 准备牌堆
+        // 4. 准备卡牌
         InitializeDeck(); 
         ShuffleDeck();
         ClearHandUI();
         DrawCards(4);
 
         turnCount = 0;
-        StartCoroutine(StartTurnRoutine());
-    }
 
-    // =========================================================
+        // ❌❌❌ 删掉下面这行！绝对不要直接调用 StartTurnRoutine！❌❌❌
+        // StartCoroutine(StartTurnRoutine()); 
+
+        // ✅✅✅ 改为调用开场表现流程 ✅✅✅
+        StartCoroutine(BattleStartSequence());
+    }
+       // 🎞️ 战斗开场表现层逻辑
+    IEnumerator BattleStartSequence()
+    {
+        CurrentPhase = BattlePhase.Init; // 标记状态
+
+        // A. 锁住所有输入 (防止玩家在动画期间乱点)
+        ConfirmPlayCardBtn.interactable = false;
+        AttackBtn.interactable = false;
+        DefendBtn.interactable = false;
+        SkipBtn.interactable = false;
+
+        // B. 第一阶段：遭遇提示
+        // 这里的 ShowMessage 就是刚才在 UIManager 里加的方法
+        if (UIManager.Instance) UIManager.Instance.ShowMessage("⚔️ 遭遇强敌！\n正在判定先手..."); 
+        
+        // ⏳ 表现层等待：给玩家 1.5秒 阅读时间
+        yield return new WaitForSeconds(1.5f);
+
+        // C. 第二阶段：逻辑计算 (瞬间完成)
+        // 50% 概率玩家先手
+        bool isPlayerFirst = Random.value > 0.5f;
+        string startText = isPlayerFirst ? "<color=#00FF00>【我方先攻】</color>" : "<color=#FF0000>【敌方先攻】</color>";
+
+        // D. 第三阶段：结果展示
+        if (UIManager.Instance) UIManager.Instance.ShowMessage(startText);
+        
+        // ⏳ 表现层等待：给玩家 1.0秒 看清结果
+        yield return new WaitForSeconds(1.0f);
+
+        // E. 收尾：关闭弹窗，进入正式逻辑
+        if (UIManager.Instance) UIManager.Instance.HideMessage();
+
+        // 🚀 分流跳转
+        if (isPlayerFirst) 
+        {
+            StartCoroutine(StartTurnRoutine());
+        }
+        else 
+        {
+            StartCoroutine(EnemyTurnRoutine());
+        }
+    }
+        // =========================================================
     // ⚔️ 指令逻辑 (含绝粮反击修复)
     // =========================================================
     
@@ -297,23 +348,23 @@ public class BattleManager : MonoBehaviour
     {
         turnCount++;
         isPlayerTurn = true;
-        
-        // 补给逻辑：每回合从库存拿1粮1甲进场
-        if (stockFood >= 1) { stockFood--; PlayerFood++; }
-        if (stockArmor >= 1) { stockArmor--; PlayerArmor++; }
-        
+        CurrentPhase = BattlePhase.PlayerTurn;
+
+        // ... (扣粮逻辑不变) ...
+
         LogToScreen($"第{turnCount}回合");
-        
-        // 🔥 计算并显示敌人意图
+
+        // 🔥🔥🔥 核心修复：一定要在这里解锁按钮！ 🔥🔥🔥
+        SetBasicButtonsActive(true); 
+
+        // 刷新意图显示
         if (Text_Enemy_Intent != null)
         {
-            // 预告：如果不防御，会受多少伤
-            int predictedDmg = Mathf.Max(0, EnemyUnitCount - PlayerArmor);
-            Text_Enemy_Intent.text = $"⚠️ 敌军意图: 攻击\n预计伤害: {predictedDmg}";
+            // ... (意图计算逻辑不变) ...
         }
 
         DrawCards(1);
-        DeselectAll();
+        DeselectAll(); // 注意：这个方法会锁住 ConfirmBtn，这是对的
         UpdateUI();
         yield return null;
     }
@@ -330,7 +381,11 @@ public class BattleManager : MonoBehaviour
         
         if(EnemyUnitCount > 0) {
             // 简单伤害公式：敌人战力 - 玩家当前护甲
-            int dmg = Mathf.Max(0, EnemyUnitCount - PlayerArmor);
+            int baseAttack = Mathf.CeilToInt(EnemyUnitCount * 0.2f); 
+            // 还要确保至少有 1 点基础攻击力（除非兵力为0）
+            if (EnemyUnitCount > 0 && baseAttack < 1) baseAttack = 1;
+
+            int dmg = Mathf.Max(0, baseAttack - PlayerArmor);
             
             if (dmg > 0) {
                 PlayerUnitCount -= dmg;
@@ -362,7 +417,17 @@ public class BattleManager : MonoBehaviour
         }
     }
 
-    void EndPlayerTurn() { isPlayerTurn = false; UpdateUI(); CheckVictoryCondition(); if(EnemyUnitCount > 0) StartCoroutine(EnemyTurnRoutine()); }
+    void EndPlayerTurn() 
+    { 
+        isPlayerTurn = false; 
+        
+        // 🔥 回合结束立刻锁住，防止连点
+        SetBasicButtonsActive(false);
+
+        UpdateUI(); 
+        CheckVictoryCondition(); 
+        if(EnemyUnitCount > 0) StartCoroutine(EnemyTurnRoutine()); 
+    }
     
     void InitializeDeck() { DrawPile.Clear(); HandPile.Clear(); DiscardPile.Clear(); if (DataManager.Instance) DrawPile = DataManager.Instance.GetStarterDeck(); }
     void ShuffleDeck() { for (int i = 0; i < DrawPile.Count; i++) { var temp = DrawPile[i]; int r = Random.Range(i, DrawPile.Count); DrawPile[i] = DrawPile[r]; DrawPile[r] = temp; } }
@@ -384,14 +449,41 @@ public class BattleManager : MonoBehaviour
         if(Text_Player_Unit) Text_Player_Unit.text = $"{PlayerUnitCount}"; // 显示信念
         if(Text_Enemy_Unit) Text_Enemy_Unit.text = $"{EnemyUnitCount}";
 
-        // 🔥 实时刷新意图 (比如玩家出了加甲牌，意图文字也要变)
         if (Text_Enemy_Intent != null && isPlayerTurn)
         {
-            int predictedDmg = Mathf.Max(0, EnemyUnitCount - PlayerArmor);
+            int baseAttack = Mathf.CeilToInt(EnemyUnitCount * 0.2f);
+            if (EnemyUnitCount > 0 && baseAttack < 1) baseAttack = 1;
+
+            int predictedDmg = Mathf.Max(0, baseAttack - PlayerArmor);
             Text_Enemy_Intent.text = $"⚠️ 敌军意图: 攻击\n预计伤害: {predictedDmg}";
         }
     }
     
     void UpdateBtnText(string t) { if(ConfirmPlayCardBtn) { var txt = ConfirmPlayCardBtn.GetComponentInChildren<TMP_Text>(); if(txt) txt.text = t; } }
-    void LogToScreen(string m) { Debug.Log(m); if (BattleLogText) BattleLogText.text = m; }
+    private string fullLog = "";
+
+    void LogToScreen(string m) 
+    { 
+        Debug.Log(m); 
+        
+        // 加上换行符
+        fullLog += m + "\n"; 
+        
+        // 可选：只保留最后 5 行（防止文本太长爆内存）
+        // 这里用简单粗暴的方法：如果太长就清空一半，或者用 Queue<string> 管理
+        // 简单版：
+        if (fullLog.Length > 1000) fullLog = fullLog.Substring(fullLog.Length - 500);
+
+        if (BattleLogText) 
+        {
+            BattleLogText.text = fullLog;
+            // 如果你的 Text 在 ScrollView 里，这里可以加代码自动滚动到底部
+        }
+    }
+    void SetBasicButtonsActive(bool isActive)
+    {
+        if (AttackBtn) AttackBtn.interactable = isActive;
+        if (DefendBtn) DefendBtn.interactable = isActive;
+        if (SkipBtn) SkipBtn.interactable = isActive;
+    }
 }

@@ -98,7 +98,7 @@ public class GameManager : MonoBehaviour
             }
             yield return null;
         }
-
+        Debug.Log("✅ GM: 所有系统就绪！");
         // 2. 确保 ResourceManager 就绪
         while (ResourceManager.Instance == null) yield return null;
 
@@ -116,10 +116,11 @@ public class GameManager : MonoBehaviour
         // 4. 刷新 UI 显示
         UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
         UIManager.Instance.UpdateResourceDisplay();
-
+        
         // 5. 判断是读档还是新游戏流程
         // 如果当前没有任何事件在运行，就开始抽取第一个
-        UIManager.Instance.ShowNextEvent();
+        //UIManager.Instance.ShowNextEvent();
+        yield return null;
     }
 
     // =========================================================

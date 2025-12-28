@@ -182,6 +182,7 @@ MonoBehaviour:
   Text_Player_Unit: {fileID: 172434823}
   Text_Enemy_Unit: {fileID: 1265020226}
   BattleLogText: {fileID: 1217510534}
+  Text_Enemy_Intent: {fileID: 0}
   AttackBtn: {fileID: 1855884041}
   DefendBtn: {fileID: 1922811779}
   SkipBtn: {fileID: 1486830203}
@@ -189,14 +190,15 @@ MonoBehaviour:
   HandAreaTransform: {fileID: 677646381}
   CardPrefab: {fileID: 2794496835724712747, guid: 22c6197fe99f2fc478f64a3026d6ce08, type: 3}
   PlayerUnitCount: 0
-  EnemyUnitCount: 0
   PlayerFood: 0
   PlayerArmor: 0
+  EnemyUnitCount: 0
   EnemyFood: 5
   EnemyArmor: 2
   DrawPile: []
   HandPile: []
   DiscardPile: []
+  CurrentPhase: 0
 --- !u!4 &275816635
 Transform:
   m_ObjectHideFlags: 0
@@ -635,10 +637,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Belief: 100
   Grain: 20
-  Water: 0
-  Troops: 0
-  Money: 0
-  Horses: 0
   Armor: 0
 --- !u!114 &1855884041 stripped
 MonoBehaviour:
@@ -6167,12 +6165,12 @@ MonoBehaviour:
   NodeSummaryPanel: {fileID: 4024637043019838129}
   BattlePanel: {fileID: 5613468341666180190}
   EventWindow: {fileID: 549937088716248916}
-  HUDLayer: {fileID: 0}
+  HUDLayer: {fileID: 4656063016610247622}
   EndingLayer: {fileID: 6080906939661175114}
-  StartBtn: {fileID: 0}
-  ContinueBtn: {fileID: 0}
-  QuitBtn: {fileID: 0}
-  AchievementBtn: {fileID: 0}
+  StartBtn: {fileID: 471121177545245809}
+  ContinueBtn: {fileID: 1579082410911490435}
+  QuitBtn: {fileID: 4323448253924298056}
+  AchievementBtn: {fileID: 8624254412183091214}
   ButtonA: {fileID: 6957202517300253890}
   ButtonB: {fileID: 8634432906138145314}
   ConfirmResultBtn: {fileID: 8771354044952823807}
@@ -6185,6 +6183,8 @@ MonoBehaviour:
   SummaryTitleText: {fileID: 8512368889657555850}
   SummaryContentText: {fileID: 5840895310612258712}
   ScrollingText: {fileID: 8637137729623013081}
+  MessagePanel: {fileID: 0}
+  MessageText: {fileID: 0}
   SceneBattleManager: {fileID: 275816631}
 --- !u!114 &8274586564563702139
 MonoBehaviour:

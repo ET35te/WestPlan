@@ -5,23 +5,26 @@ using UnityEngine;
 public class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance { get; private set; }
-
+    
     [Header("挂载 AudioSource 组件")]
     public AudioSource MusicSource; // 用来播 BGM
     public AudioSource SFXSource;   // 用来播音效
 
     private void Awake()
     {
-        // 🛑 严格的单例检查
+        // 如果已经有其他的 Instance 了
         if (Instance != null && Instance != this)
         {
-            Destroy(gameObject); // 如果已经有 AudioManager 了，新来的立刻销毁
-            return;              // 🔥 必须加这行！立刻停止运行，不要让“尸体”继续执行下面的代码
+            // 🔥 关键修改：停用组件，延迟销毁
+            // 这样能避开 Unity 在加载帧的断言检查
+            this.enabled = false; 
+            Destroy(this.gameObject); 
+            return;
         }
 
         Instance = this;
-
-        // ✅ 恢复这行代码：让音乐在切换场景时不会断
+        // 只有根物体才能 DontDestroyOnLoad，防止报错
+        transform.SetParent(null); 
         DontDestroyOnLoad(gameObject);
     }
 

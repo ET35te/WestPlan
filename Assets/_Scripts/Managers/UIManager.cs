@@ -65,11 +65,17 @@ public class UIManager : MonoBehaviour
     public TMP_Text ScrollingText;
 
     // ==============================
-    // 状态缓存
+    // 通用弹窗 (用于战斗开场等)
+    // ==============================
+    [Header("--- 通用弹窗 ---")]
+    public GameObject MessagePanel; 
+    public TMP_Text MessageText;    
+
+    // ==============================
+    // 状态缓存与外部引用
     // ==============================
     private UIState currentState;
     private DataManager.EventData currentEvent;
-
     public BattleManager SceneBattleManager;
 
     // ==============================
@@ -85,68 +91,100 @@ public class UIManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-
-        AutoBindUI();
     }
 
+    // 🔥 核心修复：正确的生命周期
     private void OnEnable()
     {
+        // 1. 监听场景加载
         SceneManager.sceneLoaded += OnSceneLoaded;
-        void Start()
-         {
-    // 监听战斗管理器的消息
-        if (SceneBattleManager != null)
-        {
-        SceneBattleManager.OnBattleEnded += ShowResult; // 只要它喊结束，我就执行 ShowResult
-        }
-        }
-
-// 记得在销毁时拔掉插头（防止报错）
-    void OnDestroy() 
-    {
-    if (SceneBattleManager != null) {
-       SceneBattleManager.OnBattleEnded -= ShowResult;
-    }
-    }
+        
+        // 2. 尝试连接战斗管理器 (如果已存在)
+        ConnectBattleManager();
     }
 
     private void OnDisable()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
+        DisconnectBattleManager();
+    }
+
+    // 辅助方法：连接 BattleManager
+    private void ConnectBattleManager()
+    {
+        if (SceneBattleManager != null)
+        {
+            SceneBattleManager.OnBattleEnded -= OnBattleVictory; // 防止重复
+            SceneBattleManager.OnBattleEnded += OnBattleVictory;
+        }
+    }
+
+    // 辅助方法：断开 BattleManager
+    private void DisconnectBattleManager()
+    {
+        if (SceneBattleManager != null)
+        {
+            SceneBattleManager.OnBattleEnded -= OnBattleVictory;
+        }
     }
 
     // ==============================
-    // 场景切换回调（关键）
+    // 场景切换回调
     // ==============================
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         Debug.Log($"🔄 场景加载: {scene.name}");
 
-        AutoBindUI();
-
-        // ⭐ 核心修复点：场景切换时清空事件缓存
+        AutoBindUI(); 
+        ConnectBattleManager();
         currentEvent = null;
 
-        if (scene.name == "SampleScene")
+        // --- 🔴 删除或修改这部分判断 ---
+        // if (scene.name == "SampleScene") ...
+        // else if (scene.name == "MainMenu") ...
+        
+        // --- ✅ 改为统一逻辑：任何时候加载完，都先进主菜单 ---
+        BindCommonButtons();
+        
+        // 如果是刚刚启动游戏，或者重置回来
+        SwitchState(UIState.MainMenu); 
+
+        // ❌ 删掉这行！不要直接开始！
+        // ShowNextEvent(); 
+    }
+
+    // ==============================
+    // ⚔️ 战斗胜利回调 (自动跳转逻辑)
+    // ==============================
+    private void OnBattleVictory(string resultMsg)
+    {
+        Debug.Log("UIManager: 收到胜利消息");
+
+        // 1. 显示结算面板
+        ShowResult(resultMsg);
+
+        // 2. 告诉 GameManager 增加计数 (可选)
+        if (GameManager.Instance) 
         {
-            BindCommonButtons();
-
-            SwitchState(UIState.Gameplay);
-
-            if (GameManager.Instance != null)
-            {
-                UpdatePlaceName(GameManager.Instance.GetCurrentNodeName());
-                UpdateResourceDisplay();
-            }
-
-            // ⭐ 不做任何条件判断，直接触发事件
-            ShowNextEvent();
+             // GameManager.Instance.CurrentEventCount++; 
         }
-        else if (scene.name == "MainMenu")
-        {
-            BindCommonButtons();
-            SwitchState(UIState.MainMenu);
-        }
+
+        // 3. 启动自动跳转协程 (3秒后返回)
+        StartCoroutine(AutoQuitBattle(3.0f));
+    }
+
+    IEnumerator AutoQuitBattle(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        
+        Debug.Log("UIManager: 自动切换回 Gameplay 状态");
+        
+        // 4. 切回大地图
+        SwitchState(UIState.Gameplay);
+        
+        // 5. 触发下一步逻辑 (检查是否该换节点了)
+        if (GameManager.Instance) 
+            GameManager.Instance.CheckGameStateAfterResult();
     }
 
     // ==============================
@@ -171,28 +209,22 @@ public class UIManager : MonoBehaviour
             case UIState.MainMenu:
                 if (MainMenuPanel) MainMenuPanel.SetActive(true);
                 break;
-
             case UIState.Gameplay:
                 if (GameplayPanel) GameplayPanel.SetActive(true);
                 if (EventWindow) EventWindow.SetActive(true);
                 break;
-
             case UIState.Result:
                 if (ResultPanel) ResultPanel.SetActive(true);
                 break;
-
             case UIState.Achievement:
                 if (AchievementPanel) AchievementPanel.SetActive(true);
                 break;
-
             case UIState.NodeSummary:
                 if (NodeSummaryPanel) NodeSummaryPanel.SetActive(true);
                 break;
-
             case UIState.Battle:
                 if (BattlePanel) BattlePanel.SetActive(true);
                 break;
-
             case UIState.Ending:
                 if (EndingLayer) EndingLayer.SetActive(true);
                 break;
@@ -204,53 +236,27 @@ public class UIManager : MonoBehaviour
     // ==============================
     public void ShowNextEvent()
     {
-    Debug.Log("🔍 UIManager: 准备显示下一个事件...");
+        if (DataManager.Instance == null || DataManager.Instance.AllEvents.Count == 0)
+        {
+            Debug.LogError("❌ DataManager 缺失或无数据！");
+            return;
+        }
 
-    // 1. 检查数据源
-    if (DataManager.Instance == null)
-    {
-        Debug.LogError("❌ 【致命】DataManager 实例不存在！请检查是否有物体挂载了 DataManager 脚本！");
-        return;
+        currentEvent = DataManager.Instance.GetRandomEvent();
+        if (currentEvent == null) return;
+
+        Debug.Log($"✅ 抽中事件: [ID:{currentEvent.ID}] {currentEvent.Title}");
+
+        if (currentEvent.IsPeaceful)
+        {
+            ShowPeacefulEvent(currentEvent);
+        }
+        else
+        {
+            EnterBattleLogic(currentEvent);
+        }
     }
 
-    if (DataManager.Instance.AllEvents.Count == 0)
-    {
-        Debug.LogError("❌ 【无数据】DataManager 里没有事件数据！请看上面的 DataManager 报错信息。");
-        return;
-    }
-
-    // 2. 获取事件
-    currentEvent = DataManager.Instance.GetRandomEvent();
-    if (currentEvent == null)
-    {
-        Debug.LogError("❌ 【运气极差】GetRandomEvent 返回了 null，这理论上不该发生。");
-        return;
-    }
-
-    Debug.Log($"✅ 抽中事件: [ID:{currentEvent.ID}] {currentEvent.Title}");
-
-    // 3. 根据类型显示
-    if (currentEvent.IsPeaceful)
-    {
-        Debug.Log("🕊️ 类型：和平事件，正在更新 UI...");
-        ShowPeacefulEvent(currentEvent);
-
-        // 🔥 诊断核心：检查 UI 绑定
-        if (EventTitleText == null) Debug.LogError("❌ 【UI丢失】EventTitleText 是空的！请检查 Hierarchy 里是否有叫 'Event_Title' 的物体！");
-        else Debug.Log($"   -> 标题已设置为: {EventTitleText.text}");
-
-        if (ContextText == null) Debug.LogError("❌ 【UI丢失】ContextText 是空的！请检查 Hierarchy 里是否有叫 'Event_Context' 的物体！");
-        
-        // 检查面板可见性
-        if (GameplayPanel != null && !GameplayPanel.activeSelf) Debug.LogError("⚠️ 【面板被藏】Gameplay_Panel 是关闭状态！");
-        if (EventWindow != null && !EventWindow.activeSelf) Debug.LogError("⚠️ 【窗口被藏】Event_Window 是关闭状态！");
-    }
-    else
-    {
-        Debug.Log("⚔️ 类型：战斗事件，进入战斗逻辑...");
-        EnterBattleLogic(currentEvent);
-    }
-    }
     public void ShowSpecificEvent(int eventID)
     {
         if (DataManager.Instance == null) return;
@@ -286,10 +292,9 @@ public class UIManager : MonoBehaviour
         {
             var t = ButtonB.GetComponentInChildren<TMP_Text>();
             if (t) t.text = evt.OptB_Text;
+            // 检查条件
             CheckOptionCondition(ButtonB, evt.OptB_Condition);
         }
-        Debug.Log($"[UI] Show Event: {evt.Title}");
-
     }
 
     private void EnterBattleLogic(DataManager.EventData evt)
@@ -297,8 +302,11 @@ public class UIManager : MonoBehaviour
         SwitchState(UIState.Battle);
 
         int.TryParse(evt.OptA_Res1_Data, out int enemyID);
-        if (SceneBattleManager == null)
-            SceneBattleManager = FindObjectOfType<BattleManager>();
+        
+        // 再次确保引用存在
+        if (SceneBattleManager == null) SceneBattleManager = FindObjectOfType<BattleManager>();
+        // 再次确保订阅 (双重保险)
+        ConnectBattleManager();
 
         if (SceneBattleManager != null && DataManager.Instance != null)
         {
@@ -308,7 +316,7 @@ public class UIManager : MonoBehaviour
     }
 
     // ==============================
-    // 结果 / 结算
+    // 结果 / 结算 / 弹窗
     // ==============================
     public void ShowResult(string result)
     {
@@ -330,8 +338,24 @@ public class UIManager : MonoBehaviour
         if (ScrollingText) ScrollingText.text = content;
     }
 
+    // 🔥 通用弹窗方法 (BattleManager 调用)
+    public void ShowMessage(string msg)
+    {
+        if (MessagePanel) 
+        {
+            MessagePanel.SetActive(true);
+            MessagePanel.transform.SetAsLastSibling(); // 确保最前
+        }
+        if (MessageText) MessageText.text = msg;
+    }
+
+    public void HideMessage()
+    {
+        if (MessagePanel) MessagePanel.SetActive(false);
+    }
+
     // ==============================
-    // 交互
+    // 交互与工具
     // ==============================
     private void OnSelectOption(bool chooseA)
     {
@@ -342,20 +366,15 @@ public class UIManager : MonoBehaviour
 
     private void OnClickNextNode()
     {
-        if (GameManager.Instance != null)
-            GameManager.Instance.GoToNextNode();
+        if (GameManager.Instance != null) GameManager.Instance.GoToNextNode();
     }
 
     private void ReturnToGameplay()
     {
         SwitchState(UIState.Gameplay);
-        if (GameManager.Instance != null)
-            GameManager.Instance.CheckGameStateAfterResult();
+        if (GameManager.Instance != null) GameManager.Instance.CheckGameStateAfterResult();
     }
 
-    // ==============================
-    // 工具方法
-    // ==============================
     public void UpdatePlaceName(string place)
     {
         if (PlaceText) PlaceText.text = place;
@@ -363,34 +382,44 @@ public class UIManager : MonoBehaviour
 
     public void UpdateResourceDisplay()
     {
-        // 保留接口，由 ResourceManager 控制
+        // 留给 ResourceManager 调用
     }
 
+    // 🔥 核心修复：防爆解析 CheckOptionCondition
     private void CheckOptionCondition(Button btn, string cond)
     {
         btn.interactable = true;
         if (string.IsNullOrEmpty(cond) || cond == "0:0") return;
 
         string[] p = cond.Split(':');
-        int resID = int.Parse(p[0]);
-        int need = int.Parse(p[1]);
+        if (p.Length < 2) return;
 
-        if (ResourceManager.Instance != null &&
-            ResourceManager.Instance.GetResourceValue(resID) < need)
+        // 使用 TryParse 防止格式错误导致的崩溃
+        if (int.TryParse(p[0], out int resID) && int.TryParse(p[1], out int need))
         {
-            btn.interactable = false;
+            if (ResourceManager.Instance != null &&
+                ResourceManager.Instance.GetResourceValue(resID) < need)
+            {
+                btn.interactable = false;
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"⚠️ 忽略错误条件: '{cond}'");
         }
     }
 
     // ==============================
-    // 自动绑定
+    // 自动绑定系统
     // ==============================
     private void AutoBindUI()
     {
         SceneBattleManager = FindObjectOfType<BattleManager>();
+        
         Transform canvas = GameObject.Find("Canvas")?.transform;
         if (!canvas) return;
 
+        // --- 面板绑定 ---
         MainMenuPanel = Find(canvas, "MainMenu_Panel");
         GameplayPanel = Find(canvas, "Gameplay_Panel");
         ResultPanel = Find(canvas, "Result_Panel");
@@ -402,6 +431,7 @@ public class UIManager : MonoBehaviour
         HUDLayer = Find(canvas, "Layer_2_HUD");
         EndingLayer = Find(canvas, "Layer_3_Ending");
 
+        // --- 文本绑定 ---
         EventTitleText = FindText(canvas, "Event_Title");
         ContextText = FindText(canvas, "Event_Context");
         PlaceText = FindText(canvas, "Place_Title_Text");
@@ -411,53 +441,87 @@ public class UIManager : MonoBehaviour
         SummaryContentText = FindText(canvas, "Summary_Content");
         ScrollingText = FindText(canvas, "Scrolling_Poem");
 
+        // --- 按钮绑定 ---
         ButtonA = FindButton(canvas, "OptionA_Btn");
         ButtonB = FindButton(canvas, "OptionB_Btn");
         ConfirmResultBtn = FindButton(canvas, "Confirm_Result_Btn");
         ToBeContinueBtn = FindButton(canvas, "ToBeContinue_Btn");
         GlobalQuitToTitleBtn = FindButton(canvas, "QuitToTitle_Btn");
+
+        // 🔥 新增：绑定主菜单的开始与退出按钮
+        // 请确保 Unity 里按钮的名字叫 "Start_Btn" 和 "Quit_Btn"
+        StartBtn = FindButton(canvas, "Start_Btn"); 
+        QuitBtn = FindButton(canvas, "Quit_Btn");   
     }
 
     private void BindCommonButtons()
     {
+        // --- 游戏内按钮 ---
         if (ButtonA)
         {
             ButtonA.onClick.RemoveAllListeners();
             ButtonA.onClick.AddListener(() => OnSelectOption(true));
         }
-
         if (ButtonB)
         {
             ButtonB.onClick.RemoveAllListeners();
             ButtonB.onClick.AddListener(() => OnSelectOption(false));
         }
-
         if (ConfirmResultBtn)
         {
             ConfirmResultBtn.onClick.RemoveAllListeners();
             ConfirmResultBtn.onClick.AddListener(ReturnToGameplay);
         }
-
         if (ToBeContinueBtn)
         {
             ToBeContinueBtn.onClick.RemoveAllListeners();
             ToBeContinueBtn.onClick.AddListener(OnClickNextNode);
         }
-
         if (GlobalQuitToTitleBtn)
         {
             GlobalQuitToTitleBtn.onClick.RemoveAllListeners();
             GlobalQuitToTitleBtn.onClick.AddListener(() =>
             {
                 if (GameManager.Instance) GameManager.Instance.ResetDataOnly();
-                SceneManager.LoadScene("MainMenu");
+                // 单场景模式下，其实就是切回 MainMenu 状态
+                SwitchState(UIState.MainMenu); 
+            });
+        }
+
+        // 🔥 新增：主菜单按钮逻辑 (直接集成在这里！)
+        if (StartBtn)
+        {
+            StartBtn.onClick.RemoveAllListeners();
+            StartBtn.onClick.AddListener(() => 
+            {
+                Debug.Log("UI: 点击开始游戏");
+                // 1. 重置数据
+                if (GameManager.Instance) GameManager.Instance.StartNewGame();
+                
+                // 2. 切换界面
+                SwitchState(UIState.Gameplay);
+                
+                // 3. 发牌/触发事件 (点火！)
+                ShowNextEvent();
+            });
+        }
+
+        if (QuitBtn)
+        {
+            QuitBtn.onClick.RemoveAllListeners();
+            QuitBtn.onClick.AddListener(() => 
+            {
+                Debug.Log("UI: 退出游戏");
+                #if UNITY_EDITOR
+                    UnityEditor.EditorApplication.isPlaying = false;
+                #else
+                    Application.Quit();
+                #endif
             });
         }
     }
 
-    // ==============================
-    // 查找工具
-    // ==============================
+    // --- 查找工具 ---
     private GameObject Find(Transform r, string n)
     {
         var t = FindChild(r, n);
