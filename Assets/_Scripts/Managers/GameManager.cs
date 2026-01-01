@@ -18,7 +18,7 @@ public class GameManager : MonoBehaviour
     [Header("--- 流程控制 ---")]
     public int RandomEventsPerNode = 3; // 每个节点先过3个随机事件，再过剧情
     public int CurrentEventCount = 0;   // 当前节点已过的事件数
-    private int forcedNextEventID = 0;  // 下一个强制跳转的事件ID
+    public int forcedNextEventID = 0;  // 下一个强制跳转的事件ID
 
     // 全局库存 (主要用于存档中转)
     public int GlobalFoodStock = 10;

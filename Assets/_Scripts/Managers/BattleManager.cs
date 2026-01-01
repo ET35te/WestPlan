@@ -187,7 +187,9 @@ public class BattleManager : MonoBehaviour
             PlayerFood -= 1; 
             int damage = 5; // 基础伤害 (可以改为 PlayerUnitCount / 10 等公式)
             EnemyUnitCount -= damage;
-            LogToScreen($"全军突击！造成 {damage} 点伤害"); 
+            LogToScreen($"全军突击！造成 {damage} 点伤害");
+            // 🔥 飘字效果
+            DamagePopup.SpawnPopup($"-{damage}", Camera.main.transform.position + Vector3.right * 2, Color.red);
         }
         else
         {
@@ -199,7 +201,10 @@ public class BattleManager : MonoBehaviour
             EnemyUnitCount -= weakDamage;
 
             LogToScreen($"<color=red>断粮强攻！信念-{hpCost}，造成 {weakDamage} 点伤害</color>");
+            // 🔥 飘字效果
+            DamagePopup.SpawnPopup($"-{weakDamage}", Camera.main.transform.position + Vector3.right * 2, new Color(1, 0.5f, 0));
         }
+        
 
         EndPlayerTurn(); 
     }
@@ -291,14 +296,35 @@ public class BattleManager : MonoBehaviour
             // 注意：现在 Unit 类型可能代表加信念/回血
             PlayerUnitCount += card.Power;
             LogToScreen($"信念恢复 +{card.Power}");
+            // 🔥 飘字效果：绿色回血
+            DamagePopup.SpawnPopup($"+{card.Power}", Camera.main.transform.position + Vector3.left * 2, Color.green);
             return;
         }
         switch (card.Effect_ID) {
-            case "ADD_RES": PlayerFood += card.Effect_Val; break;
-            case "ADD_ARMOR": PlayerArmor += card.Effect_Val; break;
-            case "DRAW_SELF": DrawCards(card.Effect_Val); break;
-            case "DMG_ENEMY": EnemyUnitCount -= card.Effect_Val; break;
-            default: EnemyUnitCount -= card.Effect_Val; break;
+            case "ADD_RES": 
+                PlayerFood += card.Effect_Val; 
+                LogToScreen($"获得粮草 +{card.Effect_Val}");
+                break;
+            case "ADD_ARMOR": 
+                PlayerArmor += card.Effect_Val; 
+                LogToScreen($"获得护甲 +{card.Effect_Val}");
+                break;
+            case "DRAW_SELF": 
+                DrawCards(card.Effect_Val); 
+                LogToScreen($"抽取 {card.Effect_Val} 张牌");
+                break;
+            case "DMG_ENEMY": 
+                EnemyUnitCount -= card.Effect_Val;
+                LogToScreen($"卡牌伤害！造成 {card.Effect_Val} 点伤害");
+                // 🔥 飘字效果：红色伤害
+                DamagePopup.SpawnPopup($"-{card.Effect_Val}", Camera.main.transform.position + Vector3.right * 2, Color.red);
+                break;
+            default: 
+                EnemyUnitCount -= card.Effect_Val;
+                LogToScreen($"造成 {card.Effect_Val} 点伤害");
+                // 🔥 飘字效果：红色伤害
+                DamagePopup.SpawnPopup($"-{card.Effect_Val}", Camera.main.transform.position + Vector3.right * 2, Color.red);
+                break;
         }
     }
 
@@ -390,8 +416,12 @@ public class BattleManager : MonoBehaviour
             if (dmg > 0) {
                 PlayerUnitCount -= dmg;
                 LogToScreen($"受到 {dmg} 点伤害！");
+                // 🔥 飘字效果：橙色伤害（标记为受敌人伤害）
+                DamagePopup.SpawnPopup($"-{dmg}", Camera.main.transform.position + Vector3.left * 2, new Color(1, 0.5f, 0));
             } else {
                 LogToScreen("完美防御！");
+                // 🔥 飘字效果：蓝色防御提示
+                DamagePopup.SpawnPopup("BLOCK", Camera.main.transform.position + Vector3.left * 2, Color.cyan);
             }
 
             // 敌人回合结束，玩家护甲通常会衰减 (可选，这里暂时保留一半)

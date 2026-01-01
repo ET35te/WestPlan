@@ -1,6 +1,3 @@
 ﻿EnemyID,Name,Power,Description,Intent_Pattern
-2001,A,3000,,A
-,,,,D
-,,,,N
-,,,,A
-,,,,N
+2001,杂虏骑兵,15,高攻低血型敌人 善于突击,A,A,D,A,N,A,A
+2002,匈奴重甲,20,高防低攻型敌人 防线坚固,D,D,A,D,D,D,A
