@@ -323,6 +323,82 @@ public class UIManager : MonoBehaviour
         SwitchState(UIState.Result);
         if (ResultText) ResultText.text = result;
         UpdateResourceDisplay();
+        
+        // 🔥 新增：启动战利品逐个弹出效果
+        StartCoroutine(ShowLootSequence());
+    }
+
+    /// <summary>
+    /// 战利品逐个弹出效果协程
+    /// </summary>
+    private IEnumerator ShowLootSequence()
+    {
+        // 等待一下，让结果面板显示出来
+        yield return new WaitForSeconds(0.5f);
+
+        // 🔥 获取战利品图标 (假设在 ResultPanel 中)
+        // 命名约定：Loot_Food, Loot_Armor, Loot_XP 等
+        
+        if (ResultPanel == null)
+            yield break;
+
+        Transform resultTransform = ResultPanel.transform;
+        
+        // 查找战利品图标
+        Image[] lootImages = new Image[3];
+        string[] lootNames = { "Loot_Food", "Loot_Armor", "Loot_XP" };
+        
+        for (int i = 0; i < lootNames.Length; i++)
+        {
+            Transform lootT = FindChild(resultTransform, lootNames[i]);
+            if (lootT != null)
+            {
+                lootImages[i] = lootT.GetComponent<Image>();
+                // 初始状态：隐藏且缩放为 0
+                if (lootImages[i] != null)
+                {
+                    lootImages[i].enabled = false;
+                    lootT.localScale = Vector3.zero;
+                }
+            }
+        }
+
+        // 逐个显示战利品，间隔 0.3 秒
+        for (int i = 0; i < lootImages.Length; i++)
+        {
+            if (lootImages[i] == null)
+                continue;
+
+            Debug.Log($"🎁 显示战利品 {i}: {lootNames[i]}");
+            
+            // 启用图片
+            lootImages[i].enabled = true;
+            
+            // 弹出动画：从 0 缩放到 1
+            Transform lootObj = lootImages[i].transform;
+            float elapsed = 0f;
+            float duration = 0.3f;
+            
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+                // 缓动：开始快，结束慢 (EaseOutElastic 效果)
+                float scale = Mathf.Lerp(0, 1, t);
+                lootObj.localScale = new Vector3(scale, scale, 1);
+                yield return null;
+            }
+            
+            lootObj.localScale = Vector3.one;
+            
+            // 两个战利品之间延迟 0.3 秒
+            if (i < lootImages.Length - 1)
+            {
+                yield return new WaitForSeconds(0.3f);
+            }
+        }
+
+        Debug.Log("✅ 所有战利品已显示");
     }
 
     public void ShowNodeSummary(string title, string content)
@@ -483,27 +559,51 @@ public class UIManager : MonoBehaviour
             GlobalQuitToTitleBtn.onClick.AddListener(() =>
             {
                 if (GameManager.Instance) GameManager.Instance.ResetDataOnly();
-                // 单场景模式下，其实就是切回 MainMenu 状态
                 SwitchState(UIState.MainMenu); 
             });
         }
 
-        // 🔥 新增：主菜单按钮逻辑 (直接集成在这里！)
+        // 🔥 主菜单按钮逻辑
         if (StartBtn)
         {
             StartBtn.onClick.RemoveAllListeners();
             StartBtn.onClick.AddListener(() => 
             {
                 Debug.Log("UI: 点击开始游戏");
-                // 1. 重置数据
                 if (GameManager.Instance) GameManager.Instance.StartNewGame();
-                
-                // 2. 切换界面
                 SwitchState(UIState.Gameplay);
-                
-                // 3. 发牌/触发事件 (点火！)
                 ShowNextEvent();
             });
+        }
+
+        // 🔥 新增：Continue 按钮逻辑 (这是缺失的!)
+        if (ContinueBtn)
+        {
+            ContinueBtn.onClick.RemoveAllListeners();
+            
+            // 检查是否有存档
+            bool hasSave = PlayerPrefs.GetInt("HasSave", 0) == 1;
+            
+            if (hasSave)
+            {
+                ContinueBtn.interactable = true;
+                ContinueBtn.onClick.AddListener(() =>
+                {
+                    Debug.Log("UI: 点击继续游戏 - 加载存档");
+                    if (GameManager.Instance)
+                    {
+                        GameManager.Instance.LoadGame();
+                    }
+                    SwitchState(UIState.Gameplay);
+                    ShowNextEvent();
+                });
+            }
+            else
+            {
+                // 没有存档时，禁用按钮
+                ContinueBtn.interactable = false;
+                Debug.Log("UI: 没有存档，Continue 按钮已禁用");
+            }
         }
 
         if (QuitBtn)

@@ -31,26 +31,34 @@ public class DamagePopup : MonoBehaviour
     /// </summary>
     public void Show(string text, Vector3 worldPosition, Color color = default)
     {
+        Debug.Log($"📍 [DamagePopup.Show] 被调用 - 文字: '{text}'");
+
         if (tmpText == null) tmpText = GetComponent<TextMeshProUGUI>();
         if (rectTransform == null) rectTransform = GetComponent<RectTransform>();
 
-        // 设置文字
-        tmpText.text = text;
-        tmpText.color = color == default ? StartColor : color;
-
-        // 设置初始位置 (从世界坐标转换到UI坐标)
-        if (rectTransform.parent != null)
+        if (tmpText == null)
         {
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                rectTransform.parent as RectTransform,
-                RectTransformUtility.WorldToScreenPoint(Camera.main, worldPosition),
-                Camera.main,
-                out Vector2 localPoint
-            );
-            rectTransform.anchoredPosition = localPoint;
+            Debug.LogError("❌ tmpText 为 null");
+            return;
         }
 
-        // 启动动画协程
+        // 设置文字和颜色
+        tmpText.text = text;
+        
+        if (color == default || color == Color.clear)
+            color = Color.white;
+        
+        tmpText.color = color;
+
+        // 暂时：直接显示在屏幕中央（飘字系统本身没问题，只是位置固定）
+        rectTransform.anchoredPosition = Vector2.zero;
+        Debug.Log($"✅ 飘字已显示: '{text}', 颜色: {color}");
+
+        // 保存动画颜色
+        StartColor = color;
+        EndColor = new Color(color.r, color.g, color.b, 0);
+
+        // 启动动画
         StartCoroutine(FloatAndFade());
     }
 
@@ -89,23 +97,30 @@ public class DamagePopup : MonoBehaviour
     /// </summary>
     public static void SpawnPopup(string text, Vector3 worldPosition, Color color = default)
     {
+        Debug.Log($"🔥 [SpawnPopup] 被调用 - 文字: '{text}', 位置: {worldPosition}");
+
         GameObject prefab = null;
 
         // 🔥 方案 A：使用静态引用（推荐 - 避免 Resources 问题）
         if (prefabReference != null)
         {
             prefab = prefabReference;
+            Debug.Log($"✅ [SpawnPopup] Prefab 来源: 静态引用");
         }
         
         // 🔥 方案 B：尝试 Resources.Load（备选方案）
         if (prefab == null)
         {
             prefab = Resources.Load<GameObject>("UI/DamagePopup");
+            if (prefab != null)
+                Debug.Log($"✅ [SpawnPopup] Prefab 来源: Resources.Load('UI/DamagePopup')");
         }
         
         if (prefab == null)
         {
             prefab = Resources.Load<GameObject>("DamagePopup");
+            if (prefab != null)
+                Debug.Log($"✅ [SpawnPopup] Prefab 来源: Resources.Load('DamagePopup')");
         }
         
         // 如果都失败，输出错误信息
@@ -119,27 +134,35 @@ public class DamagePopup : MonoBehaviour
             return;
         }
 
-        GameObject popupObj = Instantiate(
-            prefab,
-            Vector3.zero,
-            Quaternion.identity
-        );
+        // 🔥 寻找 Canvas
+        Canvas canvas = FindObjectOfType<Canvas>();
+        if (canvas == null)
+        {
+            Debug.LogError("❌ 找不到 Canvas！飘字需要 Canvas 来显示。" +
+                          "\n请检查：" +
+                          "\n1. 场景中是否有 Canvas？" +
+                          "\n2. Canvas 是否激活 (Active)？");
+            return;
+        }
+
+        Debug.Log($"✅ [SpawnPopup] Canvas 找到: {canvas.gameObject.name}, RenderMode: {canvas.renderMode}");
+
+        GameObject popupObj = Instantiate(prefab, Vector3.zero, Quaternion.identity);
+        Debug.Log($"✅ [SpawnPopup] GameObject 实例化成功");
 
         // 放在 Canvas 下
-        Canvas canvas = FindObjectOfType<Canvas>();
-        if (canvas != null)
-        {
-            popupObj.transform.SetParent(canvas.transform, false);
-        }
+        popupObj.transform.SetParent(canvas.transform, false);
+        Debug.Log($"✅ [SpawnPopup] 已添加到 Canvas 下");
 
         DamagePopup popup = popupObj.GetComponent<DamagePopup>();
         if (popup != null)
         {
+            Debug.Log($"✅ [SpawnPopup] DamagePopup 脚本找到，调用 Show()");
             popup.Show(text, worldPosition, color);
         }
         else
         {
-            Debug.LogError("❌ DamagePopup 组件未找到！");
+            Debug.LogError("❌ DamagePopup 组件未找到！Prefab 上没有 DamagePopup 脚本组件");
             Destroy(popupObj);
         }
     }

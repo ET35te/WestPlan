@@ -8,48 +8,48 @@ public class RuntimeDebugInput : MonoBehaviour
 {
     private void Update()
     {
-        // 🔑 Ctrl + D: 打印资源状态
-        if (Input.GetKeyDown(KeyCode.D) && Input.GetKey(KeyCode.LeftControl))
+        // 🔑 Shift + D: 打印资源状态
+        if (Input.GetKeyDown(KeyCode.D) && Input.GetKey(KeyCode.LeftShift))
         {
             DebugTools.PrintResourceStatus();
         }
 
-        // 🔑 Ctrl + B: 打印战斗状态
-        if (Input.GetKeyDown(KeyCode.B) && Input.GetKey(KeyCode.LeftControl))
+        // 🔑 Shift + B: 打印战斗状态
+        if (Input.GetKeyDown(KeyCode.B) && Input.GetKey(KeyCode.LeftShift))
         {
             DebugTools.PrintBattleStatus();
         }
 
-        // 🔑 Ctrl + I: 资源无限
-        if (Input.GetKeyDown(KeyCode.I) && Input.GetKey(KeyCode.LeftControl))
+        // 🔑 Shift + I: 资源无限
+        if (Input.GetKeyDown(KeyCode.I) && Input.GetKey(KeyCode.LeftShift))
         {
             if (DebugManager.Instance != null)
                 DebugManager.Instance.CheatInfiniteResources();
         }
 
-        // 🔑 Ctrl + K: 秒杀敌人
-        if (Input.GetKeyDown(KeyCode.K) && Input.GetKey(KeyCode.LeftControl))
+        // 🔑 Shift + K: 秒杀敌人 (OneHitEnemy)
+        if (Input.GetKeyDown(KeyCode.K) && Input.GetKey(KeyCode.LeftShift))
         {
             if (DebugManager.Instance != null)
                 DebugManager.Instance.CheatOneHitEnemy();
         }
 
-        // 🔑 Ctrl + S: 自杀测试
-        if (Input.GetKeyDown(KeyCode.S) && Input.GetKey(KeyCode.LeftControl))
+        // 🔑 Shift + S: 自杀测试
+        if (Input.GetKeyDown(KeyCode.S) && Input.GetKey(KeyCode.LeftShift))
         {
             if (DebugManager.Instance != null)
                 DebugManager.Instance.CheatSelfDestruct();
         }
 
-        // 🔑 Ctrl + J: 跳转到事件2005
-        if (Input.GetKeyDown(KeyCode.J) && Input.GetKey(KeyCode.LeftControl))
+        // 🔑 Shift + J: 跳转到事件2005
+        if (Input.GetKeyDown(KeyCode.J) && Input.GetKey(KeyCode.LeftShift))
         {
             if (DebugManager.Instance != null)
                 DebugManager.Instance.CheatJumpToEvent(2005);
         }
 
-        // 🔑 Ctrl + W: 快速胜利（敌人秒杀+攻击）
-        if (Input.GetKeyDown(KeyCode.W) && Input.GetKey(KeyCode.LeftControl))
+        // 🔑 Shift + W: 快速胜利（敌人秒杀+攻击）
+        if (Input.GetKeyDown(KeyCode.W) && Input.GetKey(KeyCode.LeftShift))
         {
             if (BattleManager.Instance != null)
             {
@@ -59,3 +59,4 @@ public class RuntimeDebugInput : MonoBehaviour
         }
     }
 }
+
