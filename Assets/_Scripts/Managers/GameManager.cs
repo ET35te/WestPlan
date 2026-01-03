@@ -71,6 +71,10 @@ public class GameManager : MonoBehaviour
         // 4. 更新 UI 文本 (地点、资源)
         UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
         if (ResourceManager.Instance != null) ResourceManager.Instance.ForceUpdateUI();
+
+        // 5. 启动新系统：线性剧情流程
+        Debug.Log("🎬 启动线性叙事系统...");
+        StartNodeStoryFlow();
     }
     // =========================================================
     // 👑 核心架构：初始化流程 (解决白屏死锁)
@@ -123,8 +127,125 @@ public class GameManager : MonoBehaviour
         yield return null;
     }
 
+    // =========================================================    // 🔗 新增：线性分支事件系统
     // =========================================================
-    // ⚔️ 核心逻辑：事件与战斗结算
+
+    private DataManager.EventData_v2 currentEvent_v2 = null;
+    private int currentNodeEventChainID = -1;  // 当前节点的事件链起点
+
+    /// <summary>
+    /// 启动节点剧情流程（新系统）
+    /// 顺序：ShowStoryPanel → ShowNodeEvent → ...（跳转） → NodeEnd
+    /// </summary>
+    public void StartNodeStoryFlow()
+    {
+        Debug.Log($"🎬 启动节点剧情流程: Node {CurrentNodeIndex}");
+
+        // 1. 获取该节点的剧情面板
+        DataManager.StoryPanelData panel = DataManager.Instance.GetStoryPanelByNodeID(CurrentNodeIndex);
+        if (panel == null)
+        {
+            Debug.LogWarning($"⚠️ 没有找到节点{CurrentNodeIndex}的剧情面板，跳过");
+            StartNodeEventChain(-1);
+            return;
+        }
+
+        // 2. 显示剧情面板
+        UIManager.Instance.ShowStoryPanel(panel);
+
+        // 3. 记录该节点的首个事件ID
+        currentNodeEventChainID = panel.FirstEventID;
+    }
+
+    /// <summary>
+    /// 启动节点事件链（内部调用）
+    /// </summary>
+    public void StartNodeEventChain(int firstEventID)
+    {
+        if (firstEventID <= 0)
+        {
+            Debug.LogWarning("⚠️ 无效的事件ID，直接进入节点结算");
+            TriggerSettlement();
+            return;
+        }
+
+        ShowEventByID_v2(firstEventID);
+    }
+
+    /// <summary>
+    /// 按ID显示v2版本的事件
+    /// </summary>
+    public void ShowEventByID_v2(int eventID)
+    {
+        DataManager.EventData_v2 evt = DataManager.Instance.GetEventByID_v2(eventID);
+        if (evt == null)
+        {
+            Debug.LogError($"❌ 找不到事件ID: {eventID}");
+            return;
+        }
+
+        currentEvent_v2 = evt;
+        UIManager.Instance.ShowEventUI_v2(evt);
+    }
+
+    /// <summary>
+    /// 处理v2事件选项的点击（线性分支）
+    /// </summary>
+    public void ResolveEventOption_v2(DataManager.EventData_v2 evt, bool chooseA)
+    {
+        // 1. 确定选择
+        string resultText = chooseA ? evt.OptA_Result_Txt : evt.OptB_Result_Txt;
+        string resultData = chooseA ? evt.OptA_Result_Data : evt.OptB_Result_Data;
+        int nextEventID = chooseA ? evt.NextID_A : evt.NextID_B;
+        string effectType = evt.Effect_Type;
+
+        // 2. 应用资源变化
+        if (!string.IsNullOrEmpty(resultData))
+        {
+            string changeLog = ApplyMultiResources(resultData);
+            resultText = resultText + "\n" + changeLog;
+        }
+
+        // 3. 显示结果
+        UIManager.Instance.ShowEventResult_v2(resultText);
+
+        // 4. 存储下一个事件ID供结果确认后使用
+        forcedNextEventID = nextEventID;
+
+        // 5. 处理特效
+        if (!string.IsNullOrEmpty(effectType))
+        {
+            HandleEventEffect(effectType);
+        }
+    }
+
+    /// <summary>
+    /// 确认事件结果后的处理（线性分支）
+    /// </summary>
+    public void ConfirmEventResult_v2()
+    {
+        // 1. 检查下一个事件ID
+        if (forcedNextEventID == -1)
+        {
+            // -1 表示该节点事件链结束
+            Debug.Log("📍 节点事件链结束");
+            forcedNextEventID = 0;
+            TriggerSettlement();
+            return;
+        }
+
+        if (forcedNextEventID > 0)
+        {
+            int nextID = forcedNextEventID;
+            forcedNextEventID = 0;
+            ShowEventByID_v2(nextID);
+            return;
+        }
+
+        Debug.LogWarning("⚠️ 未指定下一个事件");
+    }
+
+    // =========================================================    // ⚔️ 核心逻辑：事件与战斗结算
     // =========================================================
 
     // 由 UIManager 在点击“结果确认”按钮后调用
@@ -187,7 +308,13 @@ public class GameManager : MonoBehaviour
 
     public void TriggerSettlement()
     {
-        if (CurrentMonth >= 12) { TriggerEnding("Victory_Time"); return; }
+        // 📊 检查游戏是否应该结束
+        if (CurrentMonth >= 12)
+        {
+            Debug.Log("🏁 游戏时间已满12个月，触发结局判定...");
+            EvaluateAndTriggerEnding();
+            return;
+        }
 
         string summaryTitle = $"大汉建初元年 - {CurrentMonth}月";
         string place = GetCurrentNodeName();
@@ -369,11 +496,60 @@ public class GameManager : MonoBehaviour
         Debug.Log("GM: 数据已重置 (New Game)");
     }
 
+    /// <summary>
+    /// 📊 根据游戏状态自动判定结局类型
+    /// </summary>
+    public void EvaluateAndTriggerEnding()
+    {
+        string endingType = EvaluateEndingCondition();
+        Debug.Log($"🏁 游戏结局判定: {endingType}");
+        TriggerEnding(endingType);
+    }
+
+    /// <summary>
+    /// 🔍 根据游戏状态评估结局条件
+    /// 返回: "Victory_Ending", "Failure_Ending", "Death_Ending", "Peaceful_Ending"
+    /// </summary>
+    private string EvaluateEndingCondition()
+    {
+        // 优先级1: 检查是否已经达到终点月份
+        if (CurrentMonth >= 12)
+        {
+            Debug.Log("✅ 游戏进度: 已完成12个月的旅程");
+            
+            // 根据路线和资源判定具体结局
+            if (IsFantasyLine)
+            {
+                return "Victory_Fantasy";  // 幻想线胜利结局
+            }
+            else
+            {
+                // 检查是否是和平结局（没有大的损失）
+                if (ResourceManager.Instance.Belief > 50 && ResourceManager.Instance.Grain > 30)
+                    return "Victory_Ending";
+                else if (ResourceManager.Instance.Belief < 20)
+                    return "Failure_Ending";
+                else
+                    return "Peaceful_Ending";
+            }
+        }
+
+        // 优先级2: 检查资源是否耗尽（游戏失败条件由ResourceManager触发）
+        // 这里只作为备用判定
+
+        // 默认返回失败结局
+        return "Failure_Ending";
+    }
+
     public void TriggerEnding(string endingType)
     {
         string endText = endingType == "Victory_Time" ? "历经艰辛，终于抵达终点。" : "旅途终结。";
         if (endingType == "Death_Belief") endText = "信念崩塌，倒在黄沙之中。";
         if (endingType == "Bad_End_Event") endText = "做出错误的选择，大汉的旗帜倒下了。";
+        if (endingType == "Victory_Ending") endText = "班超成功建立了与西域诸国的联系。您的名字将被刻在历史的丰碑上！";
+        if (endingType == "Victory_Fantasy") endText = "您掌握了古老的魔法力量，成为了一位传奇人物。幻想的世界因您而改变！";
+        if (endingType == "Peaceful_Ending") endText = "您通过智慧和外交，在不流血的情况下赢得了最大的胜利。";
+        if (endingType == "Failure_Ending") endText = "您黯然返回长安，多年的热血换来了无尽的遗憾。";
 
         PlayerPrefs.DeleteKey("HasSave");
         UIManager.Instance.ShowEnding(endText);

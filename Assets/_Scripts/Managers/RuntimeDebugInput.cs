@@ -57,6 +57,26 @@ public class RuntimeDebugInput : MonoBehaviour
                 Debug.Log("⚡ [DEBUG] 快速胜利模式：敌人生命已变为1");
             }
         }
+
+        // 🔑 Shift + T: 测试线性事件系统（新系统快速验证）
+        if (Input.GetKeyDown(KeyCode.T) && Input.GetKey(KeyCode.LeftShift))
+        {
+            Debug.Log("🧪 [TEST] 启动线性事件系统测试...");
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.StartNodeStoryFlow();
+            }
+        }
+
+        // 🔑 Shift + Q: 跳过剧情面板（直接进入事件）
+        if (Input.GetKeyDown(KeyCode.Q) && Input.GetKey(KeyCode.LeftShift))
+        {
+            Debug.Log("⏭️ [DEBUG] 跳过剧情面板...");
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.CloseStoryPanelAndStartEvents();
+            }
+        }
     }
 }
 

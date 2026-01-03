@@ -147,7 +147,10 @@ public class UIManager : MonoBehaviour
         BindCommonButtons();
         
         // 如果是刚刚启动游戏，或者重置回来
-        SwitchState(UIState.MainMenu); 
+        SwitchState(UIState.MainMenu);
+        
+        // 🔥 确保 MessagePanel 初始化时是关闭的
+        if (MessagePanel) MessagePanel.SetActive(false);
 
         // ❌ 删掉这行！不要直接开始！
         // ShowNextEvent(); 
@@ -158,33 +161,31 @@ public class UIManager : MonoBehaviour
     // ==============================
     private void OnBattleVictory(string resultMsg)
     {
-        Debug.Log("UIManager: 收到胜利消息");
+        Debug.Log("🏆 UIManager: 收到战斗胜利消息");
 
         // 1. 显示结算面板
         ShowResult(resultMsg);
 
-        // 2. 告诉 GameManager 增加计数 (可选)
-        if (GameManager.Instance) 
-        {
-             // GameManager.Instance.CurrentEventCount++; 
-        }
-
-        // 3. 启动自动跳转协程 (3秒后返回)
-        StartCoroutine(AutoQuitBattle(3.0f));
+        // 2. 启动自动跳转协程 (3秒后返回)
+        StartCoroutine(AutoReturnFromBattle(3.0f));
     }
 
-    IEnumerator AutoQuitBattle(float delay)
+    IEnumerator AutoReturnFromBattle(float delay)
     {
         yield return new WaitForSeconds(delay);
         
-        Debug.Log("UIManager: 自动切换回 Gameplay 状态");
+        Debug.Log("⏭️ UIManager: 战斗结束，自动返回剧情...");
         
-        // 4. 切回大地图
+        // 1. 切回 Gameplay 状态
         SwitchState(UIState.Gameplay);
         
-        // 5. 触发下一步逻辑 (检查是否该换节点了)
-        if (GameManager.Instance) 
-            GameManager.Instance.CheckGameStateAfterResult();
+        // 2. 检查是否在v2事件系统中
+        if (GameManager.Instance != null)
+        {
+            // 关键：直接进入 v2 事件结果确认流程
+            // 这样会自动跳转到 NextID 指定的下一个事件
+            GameManager.Instance.ConfirmEventResult_v2();
+        }
     }
 
     // ==============================
@@ -649,5 +650,204 @@ public class UIManager : MonoBehaviour
     {
         var t = FindChild(r, n);
         return t ? t.GetComponent<TMP_Text>() : null;
+    }
+
+    // =========================================================
+    // 🔗 新增：v2事件系统UI方法（线性分支）
+    // =========================================================
+
+    /// <summary>
+    /// 显示剧情面板
+    /// </summary>
+    public void ShowStoryPanel(DataManager.StoryPanelData panel)
+    {
+        if (panel == null)
+        {
+            Debug.LogError("❌ ShowStoryPanel: panel 为空");
+            return;
+        }
+
+        Debug.Log($"📖 显示剧情面板: Node{panel.NodeID} - {panel.Title}");
+
+        SwitchState(UIState.Gameplay);
+
+        // 显示剧情面板
+        if (MessagePanel) 
+        {
+            MessagePanel.SetActive(true);
+            Debug.Log("✅ MessagePanel 已激活");
+        }
+        else
+        {
+            Debug.LogError("❌ MessagePanel 为空");
+        }
+
+        // 设置文本内容
+        if (MessageText)
+        {
+            MessageText.text = $"<b>{panel.Title}</b>\n\n{panel.Content}";
+            Debug.Log($"✅ 已设置文本: {panel.Title}");
+        }
+        else
+        {
+            Debug.LogError("❌ MessageText 为空");
+        }
+
+        // 配置"继续"按钮
+        if (ToBeContinueBtn)
+        {
+            Debug.Log("🔧 配置 ToBeContinueBtn 点击事件...");
+            ToBeContinueBtn.onClick.RemoveAllListeners();
+            ToBeContinueBtn.onClick.AddListener(() =>
+            {
+                Debug.Log("👆 ToBeContinueBtn 被点击！");
+                CloseStoryPanelAndStartEvents();
+            });
+            Debug.Log("✅ ToBeContinueBtn 点击事件已绑定");
+        }
+        else
+        {
+            Debug.LogError("❌ ToBeContinueBtn 为空");
+        }
+
+        Debug.Log($"📖 剧情面板显示完成");
+    }
+
+    /// <summary>
+    /// 关闭剧情面板并开始事件链
+    /// </summary>
+    public void CloseStoryPanelAndStartEvents()
+    {
+        Debug.Log("📖 关闭剧情面板，启动事件链...");
+        
+        if (MessagePanel) 
+        {
+            MessagePanel.SetActive(false);
+            Debug.Log("✅ MessagePanel 已关闭");
+        }
+
+        // 通知GameManager启动事件链
+        if (GameManager.Instance != null)
+        {
+            int currentNodeID = GameManager.Instance.CurrentNodeIndex;
+            Debug.Log($"🎬 获取Node {currentNodeID} 的首个事件...");
+            
+            DataManager.StoryPanelData panel = DataManager.Instance.GetStoryPanelByNodeID(currentNodeID);
+            if (panel != null)
+            {
+                Debug.Log($"✅ 获取到FirstEventID: {panel.FirstEventID}");
+                GameManager.Instance.StartNodeEventChain(panel.FirstEventID);
+            }
+            else
+            {
+                Debug.LogWarning($"⚠️ 找不到Node {currentNodeID} 的剧情面板");
+            }
+        }
+        else
+        {
+            Debug.LogError("❌ GameManager.Instance 为空");
+        }
+    }
+
+    /// <summary>
+    /// 显示v2版本的事件UI
+    /// </summary>
+    public void ShowEventUI_v2(DataManager.EventData_v2 evt)
+    {
+        if (evt == null) return;
+
+        SwitchState(UIState.Gameplay);
+
+        // 显示标题和内容
+        if (EventTitleText) EventTitleText.text = evt.Title;
+        if (ContextText) ContextText.text = evt.Context;
+
+        // 配置选项A
+        if (ButtonA)
+        {
+            ButtonA.interactable = true;
+            var t = ButtonA.GetComponentInChildren<TMP_Text>();
+            if (t) t.text = evt.OptA_Text;
+
+            // 检查选项条件
+            if (!string.IsNullOrEmpty(evt.Condition_A))
+            {
+                bool canChooseA = ConditionEvaluator.Evaluate(evt.Condition_A, ResourceManager.Instance);
+                ButtonA.interactable = canChooseA;
+                if (!canChooseA) t.text += " (条件不符)";
+            }
+
+            // 移除旧的监听
+            ButtonA.onClick.RemoveAllListeners();
+            // 添加新的监听
+            ButtonA.onClick.AddListener(() => OnOptionSelected_v2(evt, true));
+        }
+
+        // 配置选项B
+        if (ButtonB)
+        {
+            ButtonB.interactable = true;
+            var t = ButtonB.GetComponentInChildren<TMP_Text>();
+            if (t) t.text = evt.OptB_Text;
+
+            // 检查选项条件
+            if (!string.IsNullOrEmpty(evt.Condition_B))
+            {
+                bool canChooseB = ConditionEvaluator.Evaluate(evt.Condition_B, ResourceManager.Instance);
+                ButtonB.interactable = canChooseB;
+                if (!canChooseB) t.text += " (条件不符)";
+            }
+
+            // 移除旧的监听
+            ButtonB.onClick.RemoveAllListeners();
+            // 添加新的监听
+            ButtonB.onClick.AddListener(() => OnOptionSelected_v2(evt, false));
+        }
+
+        Debug.Log($"✅ 显示v2事件: [{evt.ID}] {evt.Title}");
+    }
+
+    /// <summary>
+    /// v2选项被点击
+    /// </summary>
+    private void OnOptionSelected_v2(DataManager.EventData_v2 evt, bool chooseA)
+    {
+        // 检查条件是否真的满足
+        string condition = chooseA ? evt.Condition_A : evt.Condition_B;
+        if (!string.IsNullOrEmpty(condition) && !ConditionEvaluator.Evaluate(condition, ResourceManager.Instance))
+        {
+            Debug.LogWarning("❌ 条件不符，无法选择该选项");
+            return;
+        }
+
+        // 禁用选项按钮
+        if (ButtonA) ButtonA.interactable = false;
+        if (ButtonB) ButtonB.interactable = false;
+
+        // 调用 GameManager 处理结果
+        GameManager.Instance.ResolveEventOption_v2(evt, chooseA);
+    }
+
+    /// <summary>
+    /// 显示事件结果（v2）
+    /// </summary>
+    public void ShowEventResult_v2(string resultText)
+    {
+        SwitchState(UIState.Result);
+
+        if (ResultText) ResultText.text = resultText;
+
+        // 配置确认按钮
+        if (ConfirmResultBtn)
+        {
+            ConfirmResultBtn.onClick.RemoveAllListeners();
+            ConfirmResultBtn.onClick.AddListener(() =>
+            {
+                // 继续到下一个事件或结算
+                GameManager.Instance.ConfirmEventResult_v2();
+            });
+        }
+
+        Debug.Log("📋 显示事件结果");
     }
 }
