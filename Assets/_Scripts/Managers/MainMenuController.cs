@@ -32,14 +32,13 @@ public class MainMenuController : MonoBehaviour
         }
 
         // 2. 切换到游戏界面 (调用 UIManager)
-        if (UIManager.Instance != null)
+        if (UIManager.Instance != null && GameManager.Instance != null)
         {
             // 切换面板
             UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
             
-            // 🔥 点火：手动触发第一个事件！
-            // 之前我们在 OnSceneLoaded 里删掉了这行，现在必须在这里补上
-            UIManager.Instance.ShowNextEvent();
+            // ✅ 新系统：启动线性剧情流程(不是随机)
+            GameManager.Instance.StartNodeStoryFlow();
         }
     }
 

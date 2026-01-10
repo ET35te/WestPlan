@@ -97,15 +97,35 @@ public class DataManager : MonoBehaviour
     void LoadAllData()
     {
         IsReady = false;
-        LoadEventTable();
-        LoadEventTable_v2();  // 新增：加载v2版本事件表
+        // ❌ 旧系统已弃用，注释掉
+        // LoadEventTable();
+        
+        // ✅ 只加载新系统
+        LoadEventTable_v2();  // 新增：加载v2版本事件表(线性分支)
         LoadStoryPanelTable();  // 新增：加载节点剧情面板
         LoadEndingTable();  // 新增：加载结局表
         LoadCardTable();
         LoadEnemyTable();
         IsReady = true; // 🔥 标记加载完成
+        
+        // 诊断信息输出
+        PrintDiagnostics();
+    }
+    
+    private void PrintDiagnostics()
+    {
+        Debug.Log("\n========== 🔍 系统诊断信息 ==========");
+        Debug.Log($"✅ 数据管理器已就绪: IsReady = {IsReady}");
+        Debug.Log($"📊 事件表(v2): {AllEvents_v2.Count} 条事件已加载");
+        Debug.Log($"📖 剧情面板: {AllStoryPanels.Count} 个面板已加载");
+        Debug.Log($"🎭 结局表: {AllEndings.Count} 个结局已加载");
+        Debug.Log($"🃏 卡牌表: {AllCards.Count} 张卡牌已加载");
+        Debug.Log($"👹 敌人表: {AllEnemies.Count} 个敌人已加载");
+        Debug.Log("=====================================\n");
     }
 
+    // ❌ 旧系统已弃用 - 已断开与配置表的联系
+    /*
     void LoadEventTable()
     {
         TextAsset textAsset = Resources.Load<TextAsset>("Data/EventTable");
@@ -159,6 +179,7 @@ public class DataManager : MonoBehaviour
             OptB_Text = "跳过"
         });
     }
+    */
 
     // --- 1. 加载卡牌数据 (整合你发的代码) ---
     void LoadCardTable()
@@ -256,21 +277,31 @@ public class DataManager : MonoBehaviour
     int ParseInt(string s) { int.TryParse(s, out int r); return r; }
     T ParseEnum<T>(string s) { try { return (T)Enum.Parse(typeof(T), s, true); } catch { return default(T); } }
 
+    // ❌ 旧系统已弃用
+    /*
     public EventData GetRandomEvent()
     {
         if (AllEvents.Count == 0) return null;
         return AllEvents[UnityEngine.Random.Range(0, AllEvents.Count)];
     }
+    */
     
     // ===== 新增方法：线性分支系统 =====
     
     // 加载新版本事件表
     void LoadEventTable_v2()
     {
+        Debug.Log("📥 开始加载 EventTable_v2...");
         TextAsset textAsset = Resources.Load<TextAsset>("Data/EventTable_v2");
-        if (textAsset == null) { Debug.LogWarning("⚠️ 找不到 EventTable_v2，将跳过加载"); return; }
+        if (textAsset == null) 
+        { 
+            Debug.LogError("❌ 找不到 EventTable_v2! 检查: Resources/Data/EventTable_v2.csv 是否存在?");
+            return; 
+        }
 
+        Debug.Log("✅ EventTable_v2 文件找到，开始解析...");
         string[] lines = textAsset.text.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+        Debug.Log($"   总共有 {lines.Length} 行数据");
         AllEvents_v2.Clear();
 
         for (int i = 1; i < lines.Length; i++)
@@ -303,10 +334,11 @@ public class DataManager : MonoBehaviour
                 if (row.Length > 14) evt.Effect_Type = row[14];
                 
                 AllEvents_v2.Add(evt);
+                Debug.Log($"   ✅ 加载事件 ID={evt.ID} ({evt.Title})");
             }
-            catch (System.Exception ex) { Debug.LogWarning($"解析事件行失败: {ex.Message}"); }
+            catch (System.Exception ex) { Debug.LogWarning($"❌ 解析事件行失败 (行 {i}): {ex.Message}"); }
         }
-        Debug.Log($"✅ 加载v2事件表: {AllEvents_v2.Count} 条");
+        Debug.Log($"✅✅✅ 加载v2事件表完成: 共 {AllEvents_v2.Count} 条事件 ✅✅✅");
     }
     
     // 加载节点剧情面板表
@@ -366,9 +398,74 @@ public class DataManager : MonoBehaviour
     // 查询方法：按ID获取v2事件
     public EventData_v2 GetEventByID_v2(int eventID)
     {
-        return AllEvents_v2.Find(e => e.ID == eventID);
+        Debug.Log($"🔍 查询事件 ID {eventID}...");
+        Debug.Log($"   当前 AllEvents_v2 中有 {AllEvents_v2.Count} 条事件");
+        
+        EventData_v2 result = AllEvents_v2.Find(e => e.ID == eventID);
+        
+        if (result != null)
+        {
+            Debug.Log($"✅ 找到事件: [{result.ID}] {result.Title}");
+            Debug.Log($"   类型: {(result.IsPeaceful ? "和平" : "战斗")}");
+            Debug.Log($"   选项A: {result.OptA_Text} (下一事件: {result.NextID_A})");
+            Debug.Log($"   选项B: {result.OptB_Text} (下一事件: {result.NextID_B})");
+        }
+        else
+        {
+            Debug.LogError($"❌ 找不到事件 ID {eventID}!");
+            Debug.LogError($"   可用的事件ID列表: {string.Join(", ", AllEvents_v2.ConvertAll(e => e.ID.ToString()))}");
+        }
+        
+        return result;
     }
     
+    /// <summary>
+    /// 遍历事件链，获取节点所有事件的ID列表
+    /// 通过首事件ID开始，逐个跟踪 NextID_A/NextID_B 直到链结束（-1）
+    /// </summary>
+    public List<int> GetNodeEventChain(int firstEventID)
+    {
+        List<int> eventChain = new List<int>();
+        int currentID = firstEventID;
+        int maxIterations = 1000;  // 防止无限循环
+        int iterations = 0;
+
+        while (currentID > 0 && iterations < maxIterations)
+        {
+            eventChain.Add(currentID);
+            var evt = GetEventByID_v2(currentID);
+            
+            if (evt == null)
+            {
+                Debug.LogWarning($"⚠️ 事件链中断: 找不到事件 ID {currentID}");
+                break;
+            }
+
+            // 假设线性事件链：NextID_A == NextID_B，都指向同一个下一事件
+            // 如果有分支，暂停链遍历（由玩家选择决定下一步）
+            if (evt.NextID_A == evt.NextID_B)
+            {
+                currentID = evt.NextID_A;  // 继续遍历
+            }
+            else
+            {
+                // 有分支，暂停
+                Debug.Log($"📌 事件链发现分支，暂停遍历 (下一事件: A={evt.NextID_A}, B={evt.NextID_B})");
+                break;
+            }
+
+            iterations++;
+        }
+
+        if (iterations >= maxIterations)
+        {
+            Debug.LogWarning($"⚠️ 事件链遍历达到最大迭代次数 ({maxIterations})，可能存在循环");
+        }
+
+        Debug.Log($"📋 获取事件链: 首事件ID={firstEventID}, 共 {eventChain.Count} 个事件");
+        return eventChain;
+    }
+
     // 查询方法：按节点ID获取剧情面板
     public StoryPanelData GetStoryPanelByNodeID(int nodeID)
     {

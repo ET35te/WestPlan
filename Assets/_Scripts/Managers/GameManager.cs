@@ -19,6 +19,8 @@ public class GameManager : MonoBehaviour
     public int RandomEventsPerNode = 3; // 每个节点先过3个随机事件，再过剧情
     public int CurrentEventCount = 0;   // 当前节点已过的事件数
     public int forcedNextEventID = 0;  // 下一个强制跳转的事件ID
+    // 缓存：选项产生的资源变化，等待玩家在结果确认时应用
+    private string pendingResourceData = null;
 
     // 全局库存 (主要用于存档中转)
     public int GlobalFoodStock = 10;
@@ -127,19 +129,26 @@ public class GameManager : MonoBehaviour
         yield return null;
     }
 
-    // =========================================================    // 🔗 新增：线性分支事件系统
+    // =========================================================    // 🔗 新增：线性分支事件系统 + 节点分页系统
     // =========================================================
 
     private DataManager.EventData_v2 currentEvent_v2 = null;
     private int currentNodeEventChainID = -1;  // 当前节点的事件链起点
+    
+    // 🎯 新增：节点事件池管理器（支持翻页和互斥选择）
+    private NodeEventPoolManager eventPoolManager = null;
+    
+    // 📦 新增：缓存所有节点事件的选择结果（用于最终结算）
+    private List<(int EventID, bool ChooseA, string ResultData)> allResolvedChoices = new List<(int, bool, string)>();
 
     /// <summary>
     /// 启动节点剧情流程（新系统）
-    /// 顺序：ShowStoryPanel → ShowNodeEvent → ...（跳转） → NodeEnd
+    /// 顺序：ShowStoryPanel → 初始化事件池 → 显示第一个事件 → 翻页/选择 → 全部完成确认 → NodeEnd
     /// </summary>
     public void StartNodeStoryFlow()
     {
-        Debug.Log($"🎬 启动节点剧情流程: Node {CurrentNodeIndex}");
+        Debug.Log($"🎬 ============ 启动节点剧情流程: Node {CurrentNodeIndex} ============");
+        Debug.Log($"🕐 时间戳: {Time.time}");
 
         // 1. 获取该节点的剧情面板
         DataManager.StoryPanelData panel = DataManager.Instance.GetStoryPanelByNodeID(CurrentNodeIndex);
@@ -150,15 +159,75 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        Debug.Log($"✅ 获取到剧情面板: {panel.Title}, FirstEventID={panel.FirstEventID}");
+
         // 2. 显示剧情面板
+        Debug.Log("📍 调用 UIManager.ShowStoryPanel()...");
         UIManager.Instance.ShowStoryPanel(panel);
+        Debug.Log("📍 ShowStoryPanel() 调用完成");
 
         // 3. 记录该节点的首个事件ID
         currentNodeEventChainID = panel.FirstEventID;
+        Debug.Log($"📍 已记录 currentNodeEventChainID = {currentNodeEventChainID}");
+        
+        // 3. 初始化事件池管理器
+        InitializeNodeEventPool(panel.FirstEventID);
     }
 
     /// <summary>
-    /// 启动节点事件链（内部调用）
+    /// 初始化节点事件池 - 从首个事件ID出发，遍历事件链获取所有事件
+    /// </summary>
+    private void InitializeNodeEventPool(int firstEventID)
+    {
+        // 1. 创建事件池管理器（如果还没有）
+        if (eventPoolManager == null)
+        {
+            // 从场景或创建
+            eventPoolManager = FindObjectOfType<NodeEventPoolManager>();
+            if (eventPoolManager == null)
+            {
+                GameObject poolObj = new GameObject("NodeEventPoolManager");
+                eventPoolManager = poolObj.AddComponent<NodeEventPoolManager>();
+            }
+        }
+
+        // 2. 获取事件链
+        List<int> eventIDs = DataManager.Instance.GetNodeEventChain(firstEventID);
+
+        // 3. 初始化事件池
+        eventPoolManager.InitializeNodeEvents(eventIDs);
+
+        // 4. 清空旧的选择记录
+        allResolvedChoices.Clear();
+
+        // 5. 显示第一个事件
+        ShowEventPageUI();
+    }
+
+    /// <summary>
+    /// 显示当前事件页面 UI
+    /// </summary>
+    private void ShowEventPageUI()
+    {
+        if (eventPoolManager == null)
+        {
+            Debug.LogError("❌ eventPoolManager 未初始化");
+            return;
+        }
+
+        var evt = eventPoolManager.GetCurrentEvent();
+        if (evt.EventData == null)
+        {
+            Debug.LogError("❌ 无法获取当前事件");
+            return;
+        }
+
+        // 由 UIManager 显示当前事件页
+        UIManager.Instance.ShowEventPageUI_v3(eventPoolManager);
+    }
+
+    /// <summary>
+    /// 启动节点事件链（旧系统，保留兼容性）
     /// </summary>
     public void StartNodeEventChain(int firstEventID)
     {
@@ -199,14 +268,16 @@ public class GameManager : MonoBehaviour
         int nextEventID = chooseA ? evt.NextID_A : evt.NextID_B;
         string effectType = evt.Effect_Type;
 
-        // 2. 应用资源变化
-        if (!string.IsNullOrEmpty(resultData))
+        // 2. 准备资源变化（延迟应用，等待玩家确认）
+        pendingResourceData = string.IsNullOrEmpty(resultData) ? null : resultData;
+        if (!string.IsNullOrEmpty(pendingResourceData))
         {
-            string changeLog = ApplyMultiResources(resultData);
-            resultText = resultText + "\n" + changeLog;
+            string previewLog = BuildResourceChangePreview(pendingResourceData);
+            resultText = resultText + "\n" + previewLog;
+            Debug.Log($"📌 资源变化已缓存，等待确认: {pendingResourceData}");
         }
 
-        // 3. 显示结果
+        // 3. 显示结果（玩家确认后再真正应用资源）
         UIManager.Instance.ShowEventResult_v2(resultText);
 
         // 4. 存储下一个事件ID供结果确认后使用
@@ -224,6 +295,19 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void ConfirmEventResult_v2()
     {
+        Debug.Log("📍 玩家确认事件结果，开始处理后续逻辑...");
+
+        // 0. 如果有缓存的资源变化，先应用
+        if (!string.IsNullOrEmpty(pendingResourceData))
+        {
+            Debug.Log($"📥 应用缓存的资源变化: {pendingResourceData}");
+            string appliedLog = ApplyMultiResources(pendingResourceData);
+            pendingResourceData = null;
+            // 刷新 UI（如果需要）
+            if (UIManager.Instance != null) UIManager.Instance.UpdateResourceDisplay();
+            Debug.Log($"✅ 资源变化已应用: {appliedLog}");
+        }
+
         // 1. 检查下一个事件ID
         if (forcedNextEventID == -1)
         {
@@ -245,10 +329,97 @@ public class GameManager : MonoBehaviour
         Debug.LogWarning("⚠️ 未指定下一个事件");
     }
 
+    // =========================================================
+    // 🎯 新增：节点分页系统 - 事件页面交互
+    // =========================================================
+
+    /// <summary>翻到下一个事件页</summary>
+    public void OnEventPageNext()
+    {
+        if (eventPoolManager == null) return;
+        if (eventPoolManager.NextPage())
+            ShowEventPageUI();
+        else
+            Debug.Log("📄 已经是最后一个事件");
+    }
+
+    /// <summary>翻到上一个事件页</summary>
+    public void OnEventPagePrevious()
+    {
+        if (eventPoolManager == null) return;
+        if (eventPoolManager.PreviousPage())
+            ShowEventPageUI();
+        else
+            Debug.Log("📄 已经是第一个事件");
+    }
+
+    /// <summary>玩家选择事件选项（支持切换）</summary>
+    public void OnEventOptionSelected_v3(bool chooseA)
+    {
+        if (eventPoolManager == null) return;
+        eventPoolManager.SetCurrentChoice(chooseA);
+        Debug.Log($"🎯 玩家选择已更新: {(chooseA ? \"选项A\" : \"选项B\")}");
+    }
+
+    /// <summary>玩家点击确认按钮，锁定当前事件为已处理</summary>
+    public void OnEventOptionConfirmed()
+    {
+        if (eventPoolManager == null) return;
+        var evt = eventPoolManager.GetCurrentEvent();
+        if (evt.EventData == null) return;
+        eventPoolManager.ResolveCurrentEvent();
+        UIManager.Instance.OnEventOptionConfirmed_v3(eventPoolManager);
+    }
+
+    /// <summary>玩家完成所有事件处理后，弹出确认窗口</summary>
+    public void OnAllEventsCompleted()
+    {
+        if (eventPoolManager == null) return;
+        if (!eventPoolManager.AreAllEventsResolved())
+        {
+            int unresolvedCount = eventPoolManager.GetUnresolvedCount();
+            Debug.LogWarning($"⚠️ 还有 {unresolvedCount} 个事件未处理");
+            return;
+        }
+        allResolvedChoices = eventPoolManager.GetAllResolvedChoices();
+        UIManager.Instance.ShowEventCompletionConfirmation();
+    }
+
+    /// <summary>确认窗口中玩家点击了确认，执行资源结算</summary>
+    public void OnEventCompletionConfirmed()
+    {
+        ApplyAllEventResults();
+        if (eventPoolManager != null)
+            eventPoolManager.Clear();
+        TriggerSettlement();
+    }
+
+    /// <summary>应用所有事件的资源结算</summary>
+    private void ApplyAllEventResults()
+    {
+        Debug.Log("💰 开始结算所有事件的资源变化...");
+        foreach (var (eventID, chooseA, resultData) in allResolvedChoices)
+        {
+            if (string.IsNullOrEmpty(resultData))
+            {
+                Debug.Log($"📌 事件 {eventID} 无资源变化");
+                continue;
+            }
+            Debug.Log($"📥 应用事件 {eventID} 的资源变化: {resultData}");
+            string appliedLog = ApplyMultiResources(resultData);
+            Debug.Log($"✅ {appliedLog}");
+        }
+        if (UIManager.Instance != null)
+            UIManager.Instance.UpdateResourceDisplay();
+        Debug.Log("✅ 所有事件资源结算完成");
+    }
+
     // =========================================================    // ⚔️ 核心逻辑：事件与战斗结算
     // =========================================================
 
     // 由 UIManager 在点击“结果确认”按钮后调用
+    // ❌ 旧系统已弃用 - 不再调用此方法
+    /*
     public void CheckGameStateAfterResult()
     {
         // A. 如果有强制跳转 (通过 Effect_Type 设置了 JUMP:ID)
@@ -274,8 +445,10 @@ public class GameManager : MonoBehaviour
             UIManager.Instance.ShowNextEvent();
         }
     }
+    */
 
-    // 处理选项结果 (骰子判定 + 资源扣除)
+    // ❌ 旧系统已弃用 - 使用新的 ResolveEventOption_v2() 替代
+    /*
     public string ResolveEventOption(DataManager.EventData evt, bool chooseA)
     {
         string baseResultText = "";
@@ -301,6 +474,7 @@ public class GameManager : MonoBehaviour
 
         return baseResultText + changeLog;
     }
+    */
 
     // =========================================================
     // 🗺️ 节点推进与结算
@@ -339,8 +513,9 @@ public class GameManager : MonoBehaviour
         UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
         UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
 
-        // 4. 开始新一轮事件
-        UIManager.Instance.ShowNextEvent();
+        // 4. ✅ 改为新系统(v2)：启动线性剧情流程
+        // ❌ 旧代码已注释：UIManager.Instance.ShowNextEvent();
+        StartNodeStoryFlow();
     }
 
     public string GetCurrentNodeName()
@@ -418,6 +593,32 @@ public class GameManager : MonoBehaviour
         return logBuilder;
     }
 
+    /// <summary>
+    /// 生成资源变化预览文本，但不实际修改资源（用于在结果面板显示预览，玩家确认后再应用）
+    /// </summary>
+    private string BuildResourceChangePreview(string dataStr)
+    {
+        if (string.IsNullOrEmpty(dataStr) || dataStr == "0:0") return "";
+
+        string logBuilder = "";
+        string[] entries = dataStr.Split(';');
+        foreach (string entry in entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry)) continue;
+            string[] parts = entry.Split(':');
+            if (parts.Length != 2) continue;
+            if (!int.TryParse(parts[0], out int id)) continue;
+            if (!int.TryParse(parts[1], out int val)) continue;
+
+            string resName = ResourceManager.Instance != null ? ResourceManager.Instance.GetResName(id) : $"Res{id}";
+            string sign = val > 0 ? "+" : "";
+            string colorHex = val > 0 ? "#00FF00" : "#FF4500";
+            logBuilder += $"\n<color={colorHex}>({resName} {sign}{val})</color>";
+        }
+
+        return logBuilder;
+    }
+
     public void HandleEventEffect(string effectType)
     {
         if (string.IsNullOrEmpty(effectType)) return;
@@ -471,14 +672,15 @@ public class GameManager : MonoBehaviour
         CurrentMonth = PlayerPrefs.GetInt("Save_Month");
         CurrentNodeIndex = PlayerPrefs.GetInt("Save_NodeIdx");
         IsFantasyLine = PlayerPrefs.GetInt("Save_IsFantasy") == 1;
-
         CurrentEventCount = 0;
 
         // 加载后立刻刷新场景
         UIManager.Instance.UpdatePlaceName(GetCurrentNodeName());
         UIManager.Instance.UpdateResourceDisplay();
         UIManager.Instance.SwitchState(UIManager.UIState.Gameplay);
-        UIManager.Instance.ShowNextEvent();
+        
+        // ✅ 新系统：启动线性剧情流程而非随机事件
+        StartNodeStoryFlow();
     }
 
     public void ResetDataOnly()

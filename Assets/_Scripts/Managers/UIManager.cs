@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
 
 public class UIManager : MonoBehaviour
 {
@@ -69,7 +70,17 @@ public class UIManager : MonoBehaviour
     // ==============================
     [Header("--- 通用弹窗 ---")]
     public GameObject MessagePanel; 
-    public TMP_Text MessageText;    
+    public TMP_Text MessageText;
+    
+    [Header("--- 战斗专用面板 ---")]
+    public GameObject BattleIntroPanel;      // 战斗开始介绍面板
+    public TMP_Text BattleIntroText;         // 战斗介绍文本
+    public Button BattleIntroFightBtn;       // 战斗按钮
+    public Button BattleIntroFleeBtn;        // 逃离按钮
+    
+    public GameObject BattleResultPanel;     // 战斗结果面板
+    public TMP_Text BattleResultText;        // 战斗结果文本
+    public Button BattleResultConfirmBtn;    // 确认按钮    
 
     // ==============================
     // 状态缓存与外部引用
@@ -77,6 +88,11 @@ public class UIManager : MonoBehaviour
     private UIState currentState;
     private DataManager.EventData currentEvent;
     public BattleManager SceneBattleManager;
+
+    // 🔴 新增：UI 状态标志，用于键盘输入备用方案
+    private bool isStoryPanelActive = false;
+    private bool isEventUIActive = false;
+    private bool isResultPanelActive = false;
 
     // ==============================
     // 生命周期
@@ -92,6 +108,60 @@ public class UIManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
     }
+
+    // 🔴 新增：Update 监听键盘输入作为备用方案
+    private void Update()
+    {
+        // 🐛 按 ~ 键切换调试日志显示
+        if (Input.GetKeyDown(KeyCode.BackQuote))
+        {
+            ToggleDebugLogging();
+        }
+
+        // 如果故事面板在显示，监听任何键盘/鼠标输入作为"继续"
+        if (isStoryPanelActive && Input.anyKeyDown)
+        {
+            Debug.Log("⌨️ 检测到键盘输入，触发继续按钮");
+            isStoryPanelActive = false;
+            OnToBeContinueBtnClicked();
+        }
+
+        // 如果事件UI在显示，监听数字键 1/2 对应选项A/B
+        if (isEventUIActive)
+        {
+            if (Input.GetKeyDown(KeyCode.Alpha1))
+            {
+                Debug.Log("🔑 检测到按键 '1'，选择选项A");
+                if (ButtonA && ButtonA.interactable)
+                    ButtonA.onClick.Invoke();
+            }
+            else if (Input.GetKeyDown(KeyCode.Alpha2))
+            {
+                Debug.Log("🔑 检测到按键 '2'，选择选项B");
+                if (ButtonB && ButtonB.interactable)
+                    ButtonB.onClick.Invoke();
+            }
+        }
+
+        // 如果结果面板在显示，监听任何键盘输入
+        if (isResultPanelActive && Input.anyKeyDown)
+        {
+            Debug.Log("⌨️ 检测到键盘输入，触发确认按钮");
+            isResultPanelActive = false;
+            if (ConfirmResultBtn)
+                ConfirmResultBtn.onClick.Invoke();
+        }
+    }
+
+    private static bool debugLoggingEnabled = false;
+
+    private void ToggleDebugLogging()
+    {
+        debugLoggingEnabled = !debugLoggingEnabled;
+        Debug.Log($"🐛 调试日志 {(debugLoggingEnabled ? "启用 ✅" : "禁用 ❌")}");
+    }
+
+    public static bool IsDebugLoggingEnabled => debugLoggingEnabled;
 
     // 🔥 核心修复：正确的生命周期
     private void OnEnable()
@@ -135,6 +205,32 @@ public class UIManager : MonoBehaviour
     {
         Debug.Log($"🔄 场景加载: {scene.name}");
 
+        // 🔴 关键修复：强制确保 DataManager 已初始化
+        if (DataManager.Instance == null)
+        {
+            Debug.LogError("❌ 场景加载时 DataManager.Instance 为空！尝试查找现有实例...");
+            DataManager dm = FindObjectOfType<DataManager>();
+            if (dm == null)
+            {
+                Debug.LogError("❌ 场景中没有 DataManager，将创建一个！");
+                GameObject dmObj = new GameObject("DataManager");
+                dm = dmObj.AddComponent<DataManager>();
+                Debug.Log("✅ 已创建 DataManager");
+            }
+        }
+        else
+        {
+            Debug.Log("✅ DataManager 已存在");
+        }
+
+        // 等待 DataManager 初始化
+        if (!DataManager.Instance.IsReady)
+        {
+            Debug.LogWarning("⚠️ DataManager 尚未就绪，强制加载数据...");
+            // 这里无法直接调用 private 方法，但可以通过反射或其他方式
+            // 暂时输出警告
+        }
+
         AutoBindUI(); 
         ConnectBattleManager();
         currentEvent = null;
@@ -146,14 +242,41 @@ public class UIManager : MonoBehaviour
         // --- ✅ 改为统一逻辑：任何时候加载完，都先进主菜单 ---
         BindCommonButtons();
         
+        // ✅ 【关键修复】场景加载后立即关闭所有弹窗面板（防止残留）
+        if (MessagePanel) MessagePanel.SetActive(false);
+        if (BattleIntroPanel) BattleIntroPanel.SetActive(false);
+        if (BattleResultPanel) BattleResultPanel.SetActive(false);
+        
         // 如果是刚刚启动游戏，或者重置回来
         SwitchState(UIState.MainMenu);
         
-        // 🔥 确保 MessagePanel 初始化时是关闭的
-        if (MessagePanel) MessagePanel.SetActive(false);
+        // 🔕 移除调试面板与实时日志的自动创建（正式版屏蔽）
+        // CreateDebugPanel();
+        // CreateOnScreenDebugLog();
 
         // ❌ 删掉这行！不要直接开始！
         // ShowNextEvent(); 
+    }
+    
+    private static bool debugPanelCreated = false;
+    private void CreateDebugPanel()
+    {
+        if (debugPanelCreated) return;
+        
+        GameObject debugObj = new GameObject("_UIDebugHelper");
+        debugObj.AddComponent<UIDebugHelper>();
+        debugPanelCreated = true;
+    }
+
+    private static bool onScreenDebugCreated = false;
+    private void CreateOnScreenDebugLog()
+    {
+        if (onScreenDebugCreated) return;
+        
+        GameObject debugObj = new GameObject("_OnScreenDebugLog");
+        debugObj.AddComponent<OnScreenDebugLog>();
+        onScreenDebugCreated = true;
+        Debug.Log("✅ 实时日志显示面板已创建（屏幕左上角）");
     }
 
     // ==============================
@@ -163,11 +286,12 @@ public class UIManager : MonoBehaviour
     {
         Debug.Log("🏆 UIManager: 收到战斗胜利消息");
 
-        // 1. 显示结算面板
-        ShowResult(resultMsg);
-
-        // 2. 启动自动跳转协程 (3秒后返回)
-        StartCoroutine(AutoReturnFromBattle(3.0f));
+        // 使用专用战斗结果面板显示结果
+        ShowBattleResultPanel(resultMsg, onConfirm: () =>
+        {
+            // 确认后返回游戏
+            StartCoroutine(AutoReturnFromBattle(0.5f));
+        });
     }
 
     IEnumerator AutoReturnFromBattle(float delay)
@@ -201,6 +325,11 @@ public class UIManager : MonoBehaviour
         if (AchievementPanel) AchievementPanel.SetActive(false);
         if (NodeSummaryPanel) NodeSummaryPanel.SetActive(false);
         if (BattlePanel) BattlePanel.SetActive(false);
+        
+        // ✅ 【关键修复】每次切换状态时都重置战斗面板（防止面板残留显示）
+        if (BattleIntroPanel) BattleIntroPanel.SetActive(false);
+        if (BattleResultPanel) BattleResultPanel.SetActive(false);
+        if (MessagePanel) MessagePanel.SetActive(false);
 
         if (HUDLayer) HUDLayer.SetActive(newState != UIState.MainMenu && newState != UIState.Ending);
         if (EndingLayer) EndingLayer.SetActive(newState == UIState.Ending);
@@ -209,6 +338,10 @@ public class UIManager : MonoBehaviour
         {
             case UIState.MainMenu:
                 if (MainMenuPanel) MainMenuPanel.SetActive(true);
+                // 关闭所有键盘监听
+                isStoryPanelActive = false;
+                isEventUIActive = false;
+                isResultPanelActive = false;
                 break;
             case UIState.Gameplay:
                 if (GameplayPanel) GameplayPanel.SetActive(true);
@@ -233,8 +366,9 @@ public class UIManager : MonoBehaviour
     }
 
     // ==============================
-    // 事件流程
+    // ❌ 旧事件系统已弃用 - 使用新系统 v2 (线性分支)
     // ==============================
+    /*
     public void ShowNextEvent()
     {
         if (DataManager.Instance == null || DataManager.Instance.AllEvents.Count == 0)
@@ -297,7 +431,10 @@ public class UIManager : MonoBehaviour
             CheckOptionCondition(ButtonB, evt.OptB_Condition);
         }
     }
+    */
 
+    // ❌ 旧系统方法(已弃用)
+    /*
     private void EnterBattleLogic(DataManager.EventData evt)
     {
         SwitchState(UIState.Battle);
@@ -315,6 +452,7 @@ public class UIManager : MonoBehaviour
             SceneBattleManager.StartBattle(enemy);
         }
     }
+    */
 
     // ==============================
     // 结果 / 结算 / 弹窗
@@ -432,25 +570,144 @@ public class UIManager : MonoBehaviour
     }
 
     // ==============================
+    // 战斗介绍与结果面板
+    // ==============================
+    /// <summary>
+    /// 显示战斗介绍面板（替代 MessagePanel）
+    /// 只有在 BattleManager.StartBattle() 中显式调用时才会出现
+    /// </summary>
+    public void ShowBattleIntroPanel(string reason, System.Action onFight, System.Action onFlee)
+    {
+        if (BattleIntroPanel == null)
+        {
+            Debug.LogError("❌ BattleIntroPanel 未绑定！使用通用 MessagePanel 作为备选");
+            ShowMessage(reason);
+            return;
+        }
+
+        Debug.Log("🎭 [ShowBattleIntroPanel] 正在显示战斗介绍面板");
+        BattleIntroPanel.SetActive(true);
+        BattleIntroPanel.transform.SetAsLastSibling(); // 确保最前
+
+        if (BattleIntroText) BattleIntroText.text = reason;
+
+        if (BattleIntroFightBtn)
+        {
+            BattleIntroFightBtn.onClick.RemoveAllListeners();
+            BattleIntroFightBtn.onClick.AddListener(() =>
+            {
+                Debug.Log("✅ 玩家选择战斗");
+                HideBattleIntroPanel();
+                onFight?.Invoke();
+            });
+        }
+
+        if (BattleIntroFleeBtn)
+        {
+            BattleIntroFleeBtn.onClick.RemoveAllListeners();
+            BattleIntroFleeBtn.onClick.AddListener(() =>
+            {
+                Debug.Log("🚫 玩家选择逃离");
+                HideBattleIntroPanel();
+                onFlee?.Invoke();
+            });
+        }
+
+        Debug.Log("✅ 战斗介绍面板已显示");
+    }
+
+    public void HideBattleIntroPanel()
+    {
+        if (BattleIntroPanel)
+        {
+            Debug.Log("🔒 [HideBattleIntroPanel] 隐藏战斗介绍面板");
+            BattleIntroPanel.SetActive(false);
+        }
+    }
+
+    /// <summary>
+    /// 显示战斗结果面板（替代通用 ResultPanel）
+    /// </summary>
+    public void ShowBattleResultPanel(string result, System.Action onConfirm)
+    {
+        if (BattleResultPanel == null)
+        {
+            Debug.LogError("❌ BattleResultPanel 未绑定！使用通用 ResultPanel 作为备选");
+            ShowResult(result);
+            return;
+        }
+
+        Debug.Log("🏆 [ShowBattleResultPanel] 正在显示战斗结果面板");
+        BattleResultPanel.SetActive(true);
+        BattleResultPanel.transform.SetAsLastSibling(); // 确保最前
+
+        if (BattleResultText) BattleResultText.text = result;
+
+        if (BattleResultConfirmBtn)
+        {
+            BattleResultConfirmBtn.onClick.RemoveAllListeners();
+            BattleResultConfirmBtn.onClick.AddListener(() =>
+            {
+                Debug.Log("✅ 战斗结果确认，关闭面板");
+                HideBattleResultPanel();
+                onConfirm?.Invoke();
+            });
+        }
+
+        Debug.Log("✅ 战斗结果面板已显示");
+    }
+
+    public void HideBattleResultPanel()
+    {
+        if (BattleResultPanel)
+        {
+            Debug.Log("🔒 [HideBattleResultPanel] 隐藏战斗结果面板");
+            BattleResultPanel.SetActive(false);
+        }
+    }
+    public void ShowConfirmQuitDialog()
+    {
+        // 使用通用 MessagePanel 进行简易确认
+        ShowMessage("确定要退出到主菜单吗？当前进度将不会保存。");
+        // 暂时复用 ToBeContinueBtn 作为“确认退出”按钮
+        if (ToBeContinueBtn)
+        {
+            ToBeContinueBtn.onClick.RemoveAllListeners();
+            ToBeContinueBtn.onClick.AddListener(() =>
+            {
+                HideMessage();
+                if (GameManager.Instance) GameManager.Instance.ResetDataOnly();
+                SwitchState(UIState.MainMenu);
+            });
+        }
+        // 同时允许玩家点击右上角的全局退出按钮再次关闭面板
+    }
+
     // 交互与工具
     // ==============================
+    // ❌ 旧系统方法(已弃用)
+    /*
     private void OnSelectOption(bool chooseA)
     {
         if (currentEvent == null || GameManager.Instance == null) return;
         string result = GameManager.Instance.ResolveEventOption(currentEvent, chooseA);
         ShowResult(result);
     }
+    */
 
     private void OnClickNextNode()
     {
         if (GameManager.Instance != null) GameManager.Instance.GoToNextNode();
     }
 
+    // ❌ 旧系统方法(已弃用) - 不再调用CheckGameStateAfterResult
+    /*
     private void ReturnToGameplay()
     {
         SwitchState(UIState.Gameplay);
         if (GameManager.Instance != null) GameManager.Instance.CheckGameStateAfterResult();
     }
+    */
 
     public void UpdatePlaceName(string place)
     {
@@ -491,76 +748,125 @@ public class UIManager : MonoBehaviour
     // ==============================
     private void AutoBindUI()
     {
+        // 🔴 关键修复：确保 Canvas 有 GraphicRaycaster，否则 UI 点击无法工作
+        Canvas[] allCanvases = FindObjectsOfType<Canvas>();
+        Debug.Log($"🔍 检查场景中的 Canvas ({allCanvases.Length} 个)...");
+        foreach (Canvas canvasItem in allCanvases)
+        {
+            if (canvasItem.GetComponent<GraphicRaycaster>() == null)
+            {
+                Debug.LogWarning($"⚠️ Canvas '{canvasItem.name}' 缺少 GraphicRaycaster，正在自动添加...");
+                canvasItem.gameObject.AddComponent<GraphicRaycaster>();
+                Debug.Log($"✅ 已为 Canvas '{canvasItem.name}' 添加 GraphicRaycaster");
+            }
+            else
+            {
+                Debug.Log($"✅ Canvas '{canvasItem.name}' 已有 GraphicRaycaster");
+            }
+        }
+
+        // 🔴 关键修复：确保 EventSystem 存在
+        EventSystem eventSystem = FindObjectOfType<EventSystem>();
+        if (eventSystem == null)
+        {
+            Debug.LogError("❌ 场景中不存在 EventSystem，正在自动创建...");
+            GameObject eventSystemObj = new GameObject("EventSystem");
+            eventSystem = eventSystemObj.AddComponent<EventSystem>();
+            eventSystemObj.AddComponent<StandaloneInputModule>();
+            Debug.Log("✅ 已创建 EventSystem 和 StandaloneInputModule");
+        }
+        else
+        {
+            Debug.Log("✅ EventSystem 已存在");
+        }
+
         SceneBattleManager = FindObjectOfType<BattleManager>();
         
-        Transform canvas = GameObject.Find("Canvas")?.transform;
-        if (!canvas) return;
+        Transform canvasTransform = GameObject.Find("Canvas")?.transform;
+        if (!canvasTransform) return;
 
         // --- 面板绑定 ---
-        MainMenuPanel = Find(canvas, "MainMenu_Panel");
-        GameplayPanel = Find(canvas, "Gameplay_Panel");
-        ResultPanel = Find(canvas, "Result_Panel");
-        AchievementPanel = Find(canvas, "Achievement_Panel");
-        NodeSummaryPanel = Find(canvas, "NodeSummary_Panel");
-        BattlePanel = Find(canvas, "Battle_Panel");
-        EventWindow = Find(canvas, "Event_Window");
+        MainMenuPanel = Find(canvasTransform, "MainMenu_Panel");
+        GameplayPanel = Find(canvasTransform, "Gameplay_Panel");
+        ResultPanel = Find(canvasTransform, "Result_Panel");
+        AchievementPanel = Find(canvasTransform, "Achievement_Panel");
+        NodeSummaryPanel = Find(canvasTransform, "NodeSummary_Panel");
+        BattlePanel = Find(canvasTransform, "Battle_Panel");
+        EventWindow = Find(canvasTransform, "Event_Window");
 
-        HUDLayer = Find(canvas, "Layer_2_HUD");
-        EndingLayer = Find(canvas, "Layer_3_Ending");
+        HUDLayer = Find(canvasTransform, "Layer_2_HUD");
+        EndingLayer = Find(canvasTransform, "Layer_3_Ending");
 
         // --- 文本绑定 ---
-        EventTitleText = FindText(canvas, "Event_Title");
-        ContextText = FindText(canvas, "Event_Context");
-        PlaceText = FindText(canvas, "Place_Title_Text");
+        EventTitleText = FindText(canvasTransform, "Event_Title");
+        ContextText = FindText(canvasTransform, "Event_Context");
+        PlaceText = FindText(canvasTransform, "Place_Title_Text");
 
-        ResultText = FindText(canvas, "Result_Text");
-        SummaryTitleText = FindText(canvas, "Summary_Title");
-        SummaryContentText = FindText(canvas, "Summary_Content");
-        ScrollingText = FindText(canvas, "Scrolling_Poem");
+        ResultText = FindText(canvasTransform, "Result_Text");
+        SummaryTitleText = FindText(canvasTransform, "Summary_Title");
+        SummaryContentText = FindText(canvasTransform, "Summary_Content");
+        ScrollingText = FindText(canvasTransform, "Scrolling_Poem");
 
         // --- 按钮绑定 ---
-        ButtonA = FindButton(canvas, "OptionA_Btn");
-        ButtonB = FindButton(canvas, "OptionB_Btn");
-        ConfirmResultBtn = FindButton(canvas, "Confirm_Result_Btn");
-        ToBeContinueBtn = FindButton(canvas, "ToBeContinue_Btn");
-        GlobalQuitToTitleBtn = FindButton(canvas, "QuitToTitle_Btn");
+        ButtonA = FindButton(canvasTransform, "OptionA_Btn");
+        ButtonB = FindButton(canvasTransform, "OptionB_Btn");
+        ConfirmResultBtn = FindButton(canvasTransform, "Confirm_Result_Btn");
+        ToBeContinueBtn = FindButton(canvasTransform, "ToBeContinue_Btn");
+        GlobalQuitToTitleBtn = FindButton(canvasTransform, "QuitToTitle_Btn");
 
         // 🔥 新增：绑定主菜单的开始与退出按钮
         // 请确保 Unity 里按钮的名字叫 "Start_Btn" 和 "Quit_Btn"
-        StartBtn = FindButton(canvas, "Start_Btn"); 
-        QuitBtn = FindButton(canvas, "Quit_Btn");   
+        StartBtn = FindButton(canvasTransform, "Start_Btn"); 
+        QuitBtn = FindButton(canvasTransform, "Quit_Btn");   
     }
 
     private void BindCommonButtons()
     {
-        // --- 游戏内按钮 ---
-        if (ButtonA)
-        {
-            ButtonA.onClick.RemoveAllListeners();
-            ButtonA.onClick.AddListener(() => OnSelectOption(true));
-        }
-        if (ButtonB)
-        {
-            ButtonB.onClick.RemoveAllListeners();
-            ButtonB.onClick.AddListener(() => OnSelectOption(false));
-        }
-        if (ConfirmResultBtn)
-        {
-            ConfirmResultBtn.onClick.RemoveAllListeners();
-            ConfirmResultBtn.onClick.AddListener(ReturnToGameplay);
-        }
+        // ✅ 新系统按钮绑定（新系统ShowEventUI_v2和ShowEventResult_v2中已内置绑定）
+        // 这里保持基础初始化，具体事件处理由各显示函数实现
+        
+        // 剧情面板按钮 - 由ShowStoryPanel()内置绑定
         if (ToBeContinueBtn)
         {
             ToBeContinueBtn.onClick.RemoveAllListeners();
-            ToBeContinueBtn.onClick.AddListener(OnClickNextNode);
+            // 绑定由 ShowStoryPanel() 内部处理
+            
+            // 🔴 附加诊断器
+            if (ToBeContinueBtn.GetComponent<ButtonClickDebugger>() == null)
+            {
+                ToBeContinueBtn.gameObject.AddComponent<ButtonClickDebugger>();
+                Debug.Log("✅ 已为 ToBeContinueBtn 附加诊断器");
+            }
         }
+        
+        // 事件UI按钮 - 由ShowEventUI_v2()内置绑定
+        if (ButtonA) 
+        {
+            ButtonA.onClick.RemoveAllListeners();
+            if (ButtonA.GetComponent<ButtonClickDebugger>() == null)
+                ButtonA.gameObject.AddComponent<ButtonClickDebugger>();
+        }
+        if (ButtonB) 
+        {
+            ButtonB.onClick.RemoveAllListeners();
+            if (ButtonB.GetComponent<ButtonClickDebugger>() == null)
+                ButtonB.gameObject.AddComponent<ButtonClickDebugger>();
+        }
+        
+        // 结果确认按钮 - 由ShowEventResult_v2()内置绑定
+        if (ConfirmResultBtn) 
+        {
+            ConfirmResultBtn.onClick.RemoveAllListeners();
+            if (ConfirmResultBtn.GetComponent<ButtonClickDebugger>() == null)
+                ConfirmResultBtn.gameObject.AddComponent<ButtonClickDebugger>();
+        }
+        
         if (GlobalQuitToTitleBtn)
         {
             GlobalQuitToTitleBtn.onClick.RemoveAllListeners();
             GlobalQuitToTitleBtn.onClick.AddListener(() =>
             {
-                if (GameManager.Instance) GameManager.Instance.ResetDataOnly();
-                SwitchState(UIState.MainMenu); 
+                ShowConfirmQuitDialog();
             });
         }
 
@@ -573,7 +879,7 @@ public class UIManager : MonoBehaviour
                 Debug.Log("UI: 点击开始游戏");
                 if (GameManager.Instance) GameManager.Instance.StartNewGame();
                 SwitchState(UIState.Gameplay);
-                ShowNextEvent();
+                // ❌ 旧系统已弃用：ShowNextEvent();
             });
         }
 
@@ -596,7 +902,7 @@ public class UIManager : MonoBehaviour
                         GameManager.Instance.LoadGame();
                     }
                     SwitchState(UIState.Gameplay);
-                    ShowNextEvent();
+                    // ❌ 旧系统已弃用：ShowNextEvent();
                 });
             }
             else
@@ -675,11 +981,13 @@ public class UIManager : MonoBehaviour
         if (MessagePanel) 
         {
             MessagePanel.SetActive(true);
-            Debug.Log("✅ MessagePanel 已激活");
+            MessagePanel.transform.SetAsLastSibling();  // 确保显示在最上层
+            Debug.Log("✅ MessagePanel 已激活并置于最上层");
         }
         else
         {
             Debug.LogError("❌ MessagePanel 为空");
+            return;
         }
 
         // 设置文本内容
@@ -697,20 +1005,46 @@ public class UIManager : MonoBehaviour
         if (ToBeContinueBtn)
         {
             Debug.Log("🔧 配置 ToBeContinueBtn 点击事件...");
+            
+            // 🔴 强制清除并重新配置
             ToBeContinueBtn.onClick.RemoveAllListeners();
-            ToBeContinueBtn.onClick.AddListener(() =>
+            
+            // 确保按钮可交互
+            ToBeContinueBtn.interactable = true;
+            Debug.Log($"✅ ToBeContinueBtn 设置为可交互");
+            
+            // 直接调用方法而不用Lambda (Lambda可能导致事件丢失)
+            ToBeContinueBtn.onClick.AddListener(OnToBeContinueBtnClicked);
+            
+            Debug.Log("✅ ToBeContinueBtn 点击事件已绑定 (直接方法引用)");
+            
+            // 诊断信息
+            Debug.Log($"📌 Button 组件状态: interactable={ToBeContinueBtn.interactable}, gameObject.active={ToBeContinueBtn.gameObject.activeInHierarchy}");
+            if (ToBeContinueBtn.GetComponent<GraphicRaycaster>() == null && ToBeContinueBtn.GetComponentInParent<Canvas>() != null)
             {
-                Debug.Log("👆 ToBeContinueBtn 被点击！");
-                CloseStoryPanelAndStartEvents();
-            });
-            Debug.Log("✅ ToBeContinueBtn 点击事件已绑定");
+                Debug.LogWarning("⚠️ 警告: ToBeContinueBtn 所在 Canvas 可能缺少 GraphicRaycaster 组件!");
+            }
         }
         else
         {
             Debug.LogError("❌ ToBeContinueBtn 为空");
         }
 
+        // 🔴 启用键盘输入备用方案
+        isStoryPanelActive = true;
+        Debug.Log("⌨️ 已启用故事面板键盘监听（按任意键继续）");
+
         Debug.Log($"📖 剧情面板显示完成");
+    }
+
+    /// <summary>
+    /// ToBeContinueBtn 点击回调 (独立方法，避免Lambda问题)
+    /// </summary>
+    private void OnToBeContinueBtnClicked()
+    {
+        Debug.Log("👆 ============ ToBeContinueBtn 被点击！============");
+        Debug.Log($"🕐 时间戳: {Time.time}");
+        CloseStoryPanelAndStartEvents();
     }
 
     /// <summary>
@@ -736,6 +1070,7 @@ public class UIManager : MonoBehaviour
             if (panel != null)
             {
                 Debug.Log($"✅ 获取到FirstEventID: {panel.FirstEventID}");
+                Debug.Log($"📍 准备显示事件 ID {panel.FirstEventID}...");
                 GameManager.Instance.StartNodeEventChain(panel.FirstEventID);
             }
             else
@@ -754,13 +1089,36 @@ public class UIManager : MonoBehaviour
     /// </summary>
     public void ShowEventUI_v2(DataManager.EventData_v2 evt)
     {
-        if (evt == null) return;
+        if (evt == null) 
+        {
+            Debug.LogError("❌ ShowEventUI_v2: evt 为空!");
+            return;
+        }
+
+        Debug.Log($"🎬 ============ 显示事件 ID {evt.ID} ============");
+        Debug.Log($"   事件: {evt.Title}");
+        Debug.Log($"   内容: {evt.Context}");
 
         SwitchState(UIState.Gameplay);
 
         // 显示标题和内容
-        if (EventTitleText) EventTitleText.text = evt.Title;
-        if (ContextText) ContextText.text = evt.Context;
+        if (EventTitleText) 
+        {
+            EventTitleText.text = evt.Title;
+            Debug.Log($"✅ 已设置标题");
+        }
+        if (ContextText) 
+        {
+            ContextText.text = evt.Context;
+            Debug.Log($"✅ 已设置内容");
+        }
+
+        // 在文本完全展开前，隐藏选项按钮
+        if (ButtonA) ButtonA.gameObject.SetActive(false);
+        if (ButtonB) ButtonB.gameObject.SetActive(false);
+
+        // 启动事件文本的逐字展开；玩家点击一次可直接展开全部
+        StartCoroutine(RevealEventContextAndEnableOptions(evt));
 
         // 配置选项A
         if (ButtonA)
@@ -774,13 +1132,19 @@ public class UIManager : MonoBehaviour
             {
                 bool canChooseA = ConditionEvaluator.Evaluate(evt.Condition_A, ResourceManager.Instance);
                 ButtonA.interactable = canChooseA;
+                Debug.Log($"📌 选项A 条件检查: {evt.Condition_A} => {(canChooseA ? "✅ 符合" : "❌ 不符合")}");
                 if (!canChooseA) t.text += " (条件不符)";
             }
 
             // 移除旧的监听
             ButtonA.onClick.RemoveAllListeners();
             // 添加新的监听
-            ButtonA.onClick.AddListener(() => OnOptionSelected_v2(evt, true));
+            ButtonA.onClick.AddListener(() => 
+            {
+                Debug.Log($"👆 选项A 被点击!");
+                OnOptionSelected_v2(evt, true);
+            });
+            Debug.Log($"✅ 选项A 已绑定: {evt.OptA_Text}");
         }
 
         // 配置选项B
@@ -795,16 +1159,76 @@ public class UIManager : MonoBehaviour
             {
                 bool canChooseB = ConditionEvaluator.Evaluate(evt.Condition_B, ResourceManager.Instance);
                 ButtonB.interactable = canChooseB;
+                Debug.Log($"📌 选项B 条件检查: {evt.Condition_B} => {(canChooseB ? "✅ 符合" : "❌ 不符合")}");
                 if (!canChooseB) t.text += " (条件不符)";
             }
 
             // 移除旧的监听
             ButtonB.onClick.RemoveAllListeners();
             // 添加新的监听
-            ButtonB.onClick.AddListener(() => OnOptionSelected_v2(evt, false));
+            ButtonB.onClick.AddListener(() => 
+            {
+                Debug.Log($"👆 选项B 被点击!");
+                OnOptionSelected_v2(evt, false);
+            });
+            Debug.Log($"✅ 选项B 已绑定: {evt.OptB_Text}");
         }
 
-        Debug.Log($"✅ 显示v2事件: [{evt.ID}] {evt.Title}");
+        // 🔴 启用事件UI键盘监听
+        isEventUIActive = true;
+        isStoryPanelActive = false;  // 关闭故事面板监听
+        Debug.Log("⌨️ 已启用事件UI键盘监听（按 1 选项A，按 2 选项B）");
+
+        Debug.Log($"✅✅ 事件 UI 显示完成");
+    }
+
+    IEnumerator RevealEventContextAndEnableOptions(DataManager.EventData_v2 evt)
+    {
+        if (ContextText == null) yield break;
+        
+        string full = evt.Context;
+        ContextText.text = "";
+        float delay = 0.02f;
+        bool fullyRevealed = false;
+
+        for (int i = 0; i < full.Length; i++)
+        {
+            // 检测鼠标点击或任意键按下，一键全文显示
+            if (Input.GetMouseButtonDown(0) || Input.anyKeyDown)
+            {
+                ContextText.text = full;
+                fullyRevealed = true;
+                Debug.Log("✅ 玩家点击/按键，事件文本一键展开");
+                break;
+            }
+
+            ContextText.text = full.Substring(0, i + 1);
+            yield return new WaitForSeconds(delay);
+        }
+
+        // 确保文本完全显示
+        if (!fullyRevealed)
+        {
+            ContextText.text = full;
+            Debug.Log("✅ 事件文本已完全渐进显示");
+        }
+
+        // 等待一帧，确保UI更新完成
+        yield return null;
+
+        // 文本已完全展开，显示并启用选项按钮
+        if (ButtonA) 
+        { 
+            ButtonA.gameObject.SetActive(true);
+            ButtonA.interactable = true;
+            Debug.Log("✅ 选项 A 按钮已启用");
+        }
+        if (ButtonB) 
+        { 
+            ButtonB.gameObject.SetActive(true);
+            ButtonB.interactable = true;
+            Debug.Log("✅ 选项 B 按钮已启用");
+        }
     }
 
     /// <summary>
@@ -812,20 +1236,34 @@ public class UIManager : MonoBehaviour
     /// </summary>
     private void OnOptionSelected_v2(DataManager.EventData_v2 evt, bool chooseA)
     {
+        Debug.Log($"🔄 ============ 选项被选择 (EventID={evt.ID}) ============");
+        Debug.Log($"   选择: {(chooseA ? "选项A" : "选项B")}");
+        
         // 检查条件是否真的满足
         string condition = chooseA ? evt.Condition_A : evt.Condition_B;
         if (!string.IsNullOrEmpty(condition) && !ConditionEvaluator.Evaluate(condition, ResourceManager.Instance))
         {
-            Debug.LogWarning("❌ 条件不符，无法选择该选项");
+            Debug.LogError($"❌ 条件检查失败: {condition}");
             return;
         }
 
+        Debug.Log($"✅ 条件检查通过，准备禁用按钮...");
         // 禁用选项按钮
-        if (ButtonA) ButtonA.interactable = false;
-        if (ButtonB) ButtonB.interactable = false;
+        if (ButtonA) 
+        {
+            ButtonA.interactable = false;
+            Debug.Log($"✅ ButtonA 已禁用");
+        }
+        if (ButtonB) 
+        {
+            ButtonB.interactable = false;
+            Debug.Log($"✅ ButtonB 已禁用");
+        }
 
+        Debug.Log($"📍 调用 GameManager.ResolveEventOption_v2()...");
         // 调用 GameManager 处理结果
         GameManager.Instance.ResolveEventOption_v2(evt, chooseA);
+        Debug.Log($"📍 ResolveEventOption_v2() 调用完成");
     }
 
     /// <summary>
@@ -833,9 +1271,16 @@ public class UIManager : MonoBehaviour
     /// </summary>
     public void ShowEventResult_v2(string resultText)
     {
+        Debug.Log($"📋 ============ 显示事件结果 ============");
+        Debug.Log($"   内容: {resultText}");
+        
         SwitchState(UIState.Result);
 
-        if (ResultText) ResultText.text = resultText;
+        if (ResultText) 
+        {
+            ResultText.text = resultText;
+            Debug.Log($"✅ 结果文本已设置");
+        }
 
         // 配置确认按钮
         if (ConfirmResultBtn)
@@ -843,11 +1288,284 @@ public class UIManager : MonoBehaviour
             ConfirmResultBtn.onClick.RemoveAllListeners();
             ConfirmResultBtn.onClick.AddListener(() =>
             {
+                Debug.Log($"👆 确认按钮被点击!");
+                Debug.Log($"📍 调用 GameManager.ConfirmEventResult_v2()...");
                 // 继续到下一个事件或结算
                 GameManager.Instance.ConfirmEventResult_v2();
             });
+            Debug.Log($"✅ 确认按钮已绑定");
         }
 
-        Debug.Log("📋 显示事件结果");
+        // 🔴 启用结果面板键盘监听
+        isEventUIActive = false;  // 关闭事件UI监听
+        isResultPanelActive = true;
+        Debug.Log("⌨️ 已启用结果面板键盘监听（按任意键确认）");
+
+        Debug.Log($"📋 事件结果显示完成");
+    }
+
+    // =========================================================
+    // 🎯 新增：节点分页 UI 系统 v3 (ShowEventPageUI_v3)
+    // =========================================================
+
+    /// <summary>
+    /// 显示事件分页 UI v3 版本（支持翻页、互斥选择、资源延迟结算）
+    /// </summary>
+    public void ShowEventPageUI_v3(NodeEventPoolManager eventPoolManager)
+    {
+        if (eventPoolManager == null)
+        {
+            Debug.LogError("❌ ShowEventPageUI_v3: eventPoolManager 为空!");
+            return;
+        }
+
+        SwitchState(UIState.Gameplay);
+
+        var evt = eventPoolManager.GetCurrentEvent();
+        if (evt.EventData == null)
+        {
+            Debug.LogError("❌ 无法获取当前事件");
+            return;
+        }
+
+        int currentPage = eventPoolManager.GetCurrentPageIndex() + 1;
+        int totalPages = eventPoolManager.GetTotalEventCount();
+
+        Debug.Log($"📄 显示事件页面 {currentPage}/{totalPages}: {evt.EventData.Title}");
+
+        // 1. 显示标题和内容
+        if (EventTitleText) EventTitleText.text = evt.EventData.Title;
+        if (ContextText) ContextText.text = evt.EventData.Context;
+
+        // 2. 更新进度条
+        UpdateEventPageProgress(currentPage, totalPages);
+
+        // 3. 配置翻页按钮
+        ConfigureNavigationButtons(eventPoolManager);
+
+        // 4. 配置选项
+        ConfigureEventOptions_v3(eventPoolManager);
+
+        // 5. 隐藏"确认按钮"，显示"完成事件按钮"（仅在全部完成时启用）
+        UpdateCompletionButton(eventPoolManager);
+    }
+
+    private void UpdateEventPageProgress(int currentPage, int totalPages)
+    {
+        var progressText = FindText(canvasTransform, "ProgressText");
+        if (progressText != null)
+        {
+            progressText.text = $"{currentPage}/{totalPages}";
+            Debug.Log($"📊 进度条: {currentPage}/{totalPages}");
+        }
+    }
+
+    private void ConfigureNavigationButtons(NodeEventPoolManager eventPoolManager)
+    {
+        int currentPage = eventPoolManager.GetCurrentPageIndex();
+        int totalPages = eventPoolManager.GetTotalEventCount();
+
+        var prevButton = FindButton(canvasTransform, "PrevButton");
+        var nextButton = FindButton(canvasTransform, "NextButton");
+
+        if (prevButton != null)
+        {
+            bool canGoPrev = currentPage > 0;
+            prevButton.interactable = canGoPrev;
+            prevButton.onClick.RemoveAllListeners();
+            prevButton.onClick.AddListener(() => GameManager.Instance.OnEventPagePrevious());
+        }
+
+        if (nextButton != null)
+        {
+            bool canGoNext = currentPage < totalPages - 1;
+            nextButton.interactable = canGoNext;
+            nextButton.onClick.RemoveAllListeners();
+            nextButton.onClick.AddListener(() => GameManager.Instance.OnEventPageNext());
+        }
+    }
+
+    private void ConfigureEventOptions_v3(NodeEventPoolManager eventPoolManager)
+    {
+        var evt = eventPoolManager.GetCurrentEvent();
+        if (evt.EventData == null) return;
+
+        bool isResolved = evt.IsResolved;
+        bool chooseA = evt.ChooseA;
+
+        if (ButtonA != null)
+            ConfigureOptionButton(ButtonA, evt.EventData.OptA_Text, evt.EventData.OptA_Result_Data, true, isResolved, chooseA);
+
+        if (ButtonB != null)
+            ConfigureOptionButton(ButtonB, evt.EventData.OptB_Text, evt.EventData.OptB_Result_Data, false, isResolved, chooseA);
+    }
+
+    private void ConfigureOptionButton(Button button, string optText, string resultData, bool isOptionA, bool isResolved, bool currentChooseA)
+    {
+        var buttonText = button.GetComponentInChildren<TMP_Text>();
+        if (buttonText == null) return;
+
+        bool canAfford = CanAffordOption(resultData);
+        bool isSelected = isOptionA == currentChooseA;
+
+        // 构建文本（资源标红）
+        string display = optText;
+        if (!string.IsNullOrEmpty(resultData))
+        {
+            string resourceDisplay = FormatResourceDisplay(resultData);
+            display += $"\n<color=red>{resourceDisplay}</color>";
+        }
+        buttonText.text = display;
+        buttonText.richText = true;
+
+        // 按钮状态
+        if (isResolved || !canAfford)
+        {
+            button.interactable = false;
+            button.image.color = Color.gray;
+        }
+        else
+        {
+            button.interactable = true;
+            button.image.color = isSelected ? new Color(0.7f, 1f, 0.7f, 1f) : Color.white;
+        }
+
+        // 绑定事件
+        button.onClick.RemoveAllListeners();
+        button.onClick.AddListener(() =>
+        {
+            PlayOptionClickFeedback(button);
+            GameManager.Instance.OnEventOptionSelected_v3(isOptionA);
+            ShowEventPageUI_v3(NodeEventPoolManager.Instance);
+        });
+    }
+
+    private bool CanAffordOption(string resultData)
+    {
+        if (string.IsNullOrEmpty(resultData)) return true;
+
+        foreach (string item in resultData.Split(';'))
+        {
+            string[] kv = item.Split(':');
+            if (kv.Length != 2) continue;
+
+            string resourceName = kv[0].Trim();
+            if (!int.TryParse(kv[1].Trim(), out int delta)) continue;
+
+            int current = GetCurrentResourceAmount(resourceName);
+            if (current + delta < 0)
+                return false;
+        }
+        return true;
+    }
+
+    private int GetCurrentResourceAmount(string resourceName)
+    {
+        if (ResourceManager.Instance == null) return 0;
+        return resourceName switch
+        {
+            "Food" => ResourceManager.Instance.Grain,
+            "Armor" => ResourceManager.Instance.Armor,
+            "Belief" => ResourceManager.Instance.Belief,
+            _ => 0
+        };
+    }
+
+    private string FormatResourceDisplay(string resultData)
+    {
+        if (string.IsNullOrEmpty(resultData)) return "";
+
+        var parts = new System.Collections.Generic.List<string>();
+        foreach (string item in resultData.Split(';'))
+        {
+            string[] kv = item.Split(':');
+            if (kv.Length != 2) continue;
+
+            string displayName = kv[0].Trim() switch
+            {
+                "Food" => "粮食",
+                "Armor" => "铠甲",
+                "Belief" => "信念",
+                var x => x
+            };
+
+            parts.Add($"{displayName}:{kv[1].Trim()}");
+        }
+        return string.Join(" | ", parts);
+    }
+
+    private void PlayOptionClickFeedback(Button button)
+    {
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.Play("UI_Click");
+
+        // 使用动效管理器播放按钮动效
+        EventPageUIEffects.PlayButtonPunchEffect(button.GetComponent<RectTransform>());
+    }
+
+    private void UpdateCompletionButton(NodeEventPoolManager eventPoolManager)
+    {
+        bool allComplete = eventPoolManager.AreAllEventsResolved();
+        var completeButton = FindButton(canvasTransform, "AllEventsCompleteButton");
+        
+        if (completeButton != null)
+        {
+            completeButton.interactable = allComplete;
+            completeButton.onClick.RemoveAllListeners();
+            completeButton.onClick.AddListener(() => GameManager.Instance.OnAllEventsCompleted());
+        }
+    }
+
+    public void OnEventOptionConfirmed_v3(NodeEventPoolManager eventPoolManager)
+    {
+        if (ButtonA != null) ButtonA.interactable = false;
+        if (ButtonB != null) ButtonB.interactable = false;
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.Play("UI_Success");
+
+        Debug.Log($"✅ 事件已确认");
+    }
+
+    public void ShowEventCompletionConfirmation()
+    {
+        Debug.Log("🎯 显示事件完成确认窗口");
+        
+        var confirmPanel = FindTransform(canvasTransform, "EventCompletionConfirmationPanel");
+        if (confirmPanel != null)
+        {
+            confirmPanel.gameObject.SetActive(true);
+            var confirmButton = confirmPanel.GetComponentInChildren<Button>();
+            if (confirmButton != null)
+            {
+                confirmButton.onClick.RemoveAllListeners();
+                confirmButton.onClick.AddListener(() =>
+                {
+                    confirmPanel.gameObject.SetActive(false);
+                    GameManager.Instance.OnEventCompletionConfirmed();
+                });
+            }
+        }
+    }
+
+    private Transform FindTransform(Transform parent, string name)
+    {
+        if (parent == null) return null;
+        var result = parent.Find(name);
+        if (result != null) return result;
+
+        foreach (Transform child in parent)
+        {
+            if (child.name == name) return child;
+            var found = FindTransform(child, name);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private Button FindButton(Transform parent, string name)
+    {
+        var transform = FindTransform(parent, name);
+        return transform?.GetComponent<Button>();
     }
 }

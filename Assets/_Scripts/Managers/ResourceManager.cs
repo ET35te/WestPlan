@@ -42,9 +42,22 @@ public class ResourceManager : MonoBehaviour
                 break;
 
             case 102: // 粮草 (Cost)
-                Grain += amount;
-                // 粮草允许为负吗？通常不允许，这里只做加减，检查逻辑在 GM/Battle
-                if (Grain < 0) Grain = 0; 
+                {
+                    int before = Grain;
+                    int after = before + amount;
+                    if (after >= 0)
+                    {
+                        Grain = after;
+                    }
+                    else
+                    {
+                        // 粮草不足：将粮草归零，并把超出的负值转移为对信念的伤害
+                        int deficit = -after; // 需要扣的信念
+                        Grain = 0;
+                        Belief -= deficit;
+                        if (Belief <= 0) OnGameEndingTriggered?.Invoke("Death_Belief");
+                    }
+                }
                 break;
 
             case 103: // 盾/甲 (Stock)

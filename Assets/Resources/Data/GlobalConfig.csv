@@ -1,2 +1,2 @@
-﻿Player_Start_Food,Player+Start_Armor,Enemy_Start_Food,Enemy_Start_Armor,Turn_Regen_Food,Turn_Regen_Armor,Defend_Mitigation,Attack_Base_Mult
-1,1,0,0,1,1,5,1
+﻿Player_Start_Food,Player_Start_Armor,Enemy_Start_Food,Enemy_Start_Armor,Turn_Regen_Food,Turn_Regen_Armor,Defend_Mitigation_Rate,Attack_Base_Damage,Flee_Belief_Penalty,Victory_Loot_Food,Victory_Loot_Armor
+1,1,0,0,2,1,0.5,5,5,2,1

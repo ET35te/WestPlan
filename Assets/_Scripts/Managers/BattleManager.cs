@@ -12,6 +12,8 @@ public class BattleManager : MonoBehaviour
     public int DefaultUnitCount = 5;
     public int VictoryLootFood = 2;
     public int VictoryLootArmor = 1;
+    [Header("--- 战斗规则 ---")]
+    public int FleeBeliefPenalty = 5; // 撤退扣除的信念值
 
     // ==============================
     // 👉 UI 引用
@@ -55,6 +57,16 @@ public class BattleManager : MonoBehaviour
     private BattleCardUI currentSelectedCardUI;
     private bool isPlayerTurn;
     private int turnCount = 0;
+    // 记录临时改动的按钮文本，便于恢复
+    private string _origAttackText;
+    private string _origSkipText;
+    
+    // 🎭 敌人状态机
+    private EnemyStateMachine enemyFSM;
+    
+    // 📊 全局粮草回收机制
+    private int totalFoodGainedThisBattle = 0; // 累计获得的粮草
+    private int lastTurnPlayerDamageToEnemy = 0; // 上一回合玩家对敌人的伤害
     
     // 事件广播：解耦架构，通知 UI 打开结算面板
     public System.Action<string> OnBattleEnded;
@@ -69,6 +81,13 @@ public class BattleManager : MonoBehaviour
 
         if (UIManager.Instance != null && UIManager.Instance.BattlePanel != null)
             UIManager.Instance.BattlePanel.SetActive(false);
+        
+        // ✅ 确保战斗介绍面板初始化为关闭状态（重要！否则会在游戏启动时直接弹出）
+        if (UIManager.Instance != null && UIManager.Instance.BattleIntroPanel != null)
+            UIManager.Instance.BattleIntroPanel.SetActive(false);
+        
+        if (UIManager.Instance != null && UIManager.Instance.BattleResultPanel != null)
+            UIManager.Instance.BattleResultPanel.SetActive(false);
     }
 
     void Start()
@@ -116,7 +135,12 @@ public class BattleManager : MonoBehaviour
             LogToScreen("遭遇伏兵！");
         }
 
-        // 4. 准备卡牌
+        // 4. 初始化敌人状态机
+        enemyFSM = new EnemyStateMachine(EnemyUnitCount);
+        lastTurnPlayerDamageToEnemy = 0;
+        totalFoodGainedThisBattle = 0;
+
+        // 5. 准备卡牌
         InitializeDeck(); 
         ShuffleDeck();
         ClearHandUI();
@@ -124,11 +148,138 @@ public class BattleManager : MonoBehaviour
 
         turnCount = 0;
 
-        // ❌❌❌ 删掉下面这行！绝对不要直接调用 StartTurnRoutine！❌❌❌
-        // StartCoroutine(StartTurnRoutine()); 
+        // ✅✅✅ 改为调用开场选择：战斗或撤退 ✅✅✅
+        StartCoroutine(BattleIntroSequence());
+    }
+    // 🎛️ 恢复默认的战斗按钮绑定
+    void BindDefaultBattleButtons()
+    {
+        if (AttackBtn)
+        {
+            AttackBtn.onClick.RemoveAllListeners();
+            AttackBtn.onClick.AddListener(OnAttackCmd);
+        }
+        if (DefendBtn)
+        {
+            DefendBtn.onClick.RemoveAllListeners();
+            DefendBtn.onClick.AddListener(OnDefendCmd);
+        }
+        if (SkipBtn)
+        {
+            SkipBtn.onClick.RemoveAllListeners();
+            SkipBtn.onClick.AddListener(OnSkipCmd);
+        }
+    }
+    // 🎯 设置按钮文本
+    void SetButtonText(Button btn, string text)
+    {
+        if (btn == null) return;
+        var txt = btn.GetComponentInChildren<TMP_Text>();
+        if (txt) txt.text = text;
+    }
+    // 🎬 战斗开场选择：战斗或撤退
+    IEnumerator BattleIntroSequence()
+    {
+        CurrentPhase = BattlePhase.Init;
 
-        // ✅✅✅ 改为调用开场表现流程 ✅✅✅
-        StartCoroutine(BattleStartSequence());
+        // 禁用基础按钮交互，避免误触
+        SetBasicButtonsActive(false);
+
+        // 保存原始按钮文本
+        if (AttackBtn && _origAttackText == null)
+        {
+            var t = AttackBtn.GetComponentInChildren<TMP_Text>();
+            _origAttackText = t ? t.text : "攻击";
+        }
+        if (SkipBtn && _origSkipText == null)
+        {
+            var t = SkipBtn.GetComponentInChildren<TMP_Text>();
+            _origSkipText = t ? t.text : "跳过";
+        }
+
+        // 🎭 使用专用战斗介绍面板（而不是 MessagePanel）
+        string introText = $"⚔️ 遭遇强敌！\n敌军：{(EnemyUnitCount > 0 ? $"{EnemyUnitCount} 战力" : "伏兵")}\n选择战斗或撤退\n撤退将扣除信念 {FleeBeliefPenalty}。";
+
+        bool choiceMade = false;
+        bool choiceFight = false;
+
+        Debug.Log("📢 [BattleIntroSequence] 准备显示战斗介绍面板");
+        
+        if (UIManager.Instance)
+        {
+            UIManager.Instance.ShowBattleIntroPanel(
+                introText,
+                onFight: () =>
+                {
+                    Debug.Log("✅ [BattleIntroSequence] 玩家选择战斗");
+                    choiceFight = true;
+                    choiceMade = true;
+                },
+                onFlee: () =>
+                {
+                    Debug.Log("🚫 [BattleIntroSequence] 玩家选择逃离");
+                    choiceFight = false;
+                    choiceMade = true;
+                }
+            );
+        }
+
+        // 等待玩家做出选择
+        Debug.Log("⏳ [BattleIntroSequence] 等待玩家选择...");
+        while (!choiceMade)
+        {
+            yield return null;
+        }
+        
+        Debug.Log("🎯 [BattleIntroSequence] 选择已做出，面板应该已关闭");
+        // 等待一帧确保 UI 更新完成
+        yield return new WaitForSeconds(0.1f);
+
+        if (!choiceFight)
+        {
+            // 玩家选择逃离
+            yield return StartCoroutine(FleeFromBattleRoutine());
+        }
+        else
+        {
+            // 玩家选择战斗，进入开场表现与先手判定
+            StartCoroutine(BattleStartSequence());
+        }
+    }
+    void RestoreIntroButtons()
+    {
+        // 恢复按钮文本与默认绑定
+        SetButtonText(AttackBtn, _origAttackText);
+        SetButtonText(SkipBtn, _origSkipText);
+        BindDefaultBattleButtons();
+        // 初始阶段仍应锁住，直到真正的玩家回合开始
+        SetBasicButtonsActive(false);
+    }
+    IEnumerator FleeFromBattleRoutine()
+    {
+        // 关闭提示
+        if (UIManager.Instance) UIManager.Instance.HideMessage();
+
+        // 停止所有战斗流程
+        StopAllCoroutines();
+
+        // 扣除信念
+        if (ResourceManager.Instance != null)
+        {
+            ResourceManager.Instance.ChangeResource(101, -FleeBeliefPenalty);
+        }
+
+        // 恢复按钮状态与文本
+        RestoreIntroButtons();
+
+        // 广播战斗结束（撤退）
+        int curBelief = ResourceManager.Instance != null ? ResourceManager.Instance.Belief : PlayerUnitCount;
+        int curGrain = ResourceManager.Instance != null ? ResourceManager.Instance.Grain : stockFood;
+        int curArmor = ResourceManager.Instance != null ? ResourceManager.Instance.Armor : stockArmor;
+        string msg = $"选择避战，损失士气 {FleeBeliefPenalty}。\n信念:{curBelief} 粮:{curGrain} 甲:{curArmor}";
+        OnBattleEnded?.Invoke(msg);
+
+        yield return null;
     }
        // 🎞️ 战斗开场表现层逻辑
     IEnumerator BattleStartSequence()
@@ -187,6 +338,7 @@ public class BattleManager : MonoBehaviour
             PlayerFood -= 1; 
             int damage = 5; // 基础伤害 (可以改为 PlayerUnitCount / 10 等公式)
             EnemyUnitCount -= damage;
+            lastTurnPlayerDamageToEnemy += damage;
             LogToScreen($"全军突击！造成 {damage} 点伤害");
             // 🔥 飘字效果
             DamagePopup.SpawnPopup($"-{damage}", Camera.main.transform.position + Vector3.right * 2, Color.red);
@@ -199,14 +351,16 @@ public class BattleManager : MonoBehaviour
             
             int weakDamage = 2; // 虚弱伤害
             EnemyUnitCount -= weakDamage;
+            lastTurnPlayerDamageToEnemy += weakDamage;
 
             LogToScreen($"<color=red>断粮强攻！信念-{hpCost}，造成 {weakDamage} 点伤害</color>");
             // 🔥 飘字效果
             DamagePopup.SpawnPopup($"-{weakDamage}", Camera.main.transform.position + Vector3.right * 2, new Color(1, 0.5f, 0));
         }
         
-
-        EndPlayerTurn(); 
+        // ✅ 改：不再结束回合，只是一个普通动作
+        UpdateUI();
+        CheckVictoryCondition();
     }
 
     void OnDefendCmd() 
@@ -226,13 +380,15 @@ public class BattleManager : MonoBehaviour
             LogToScreen($"<color=red>疲惫防守 +2甲 (粮草不足)</color>");
         }
 
-        EndPlayerTurn(); 
+        // ✅ 改：不再结束回合
+        UpdateUI();
+        CheckVictoryCondition();
     }
 
     void OnSkipCmd() 
     { 
         if (!isPlayerTurn) return; 
-        LogToScreen("按兵不动"); 
+        LogToScreen("按兵不动，进入敌方回合。");
         EndPlayerTurn(); 
     }
 
@@ -276,10 +432,22 @@ public class BattleManager : MonoBehaviour
         PlayerArmor -= card.Cost_Armor;
 
         ApplyCardEffect(card);
+        
+        // 📊 追踪玩家出牌，用于触发敌人反制
+        enemyFSM?.OnPlayerPlayCard();
 
         HandPile.Remove(card);
         DiscardPile.Add(card);
-        Destroy(currentSelectedCardUI.gameObject);
+        // 移除卡牌的 UI 对象
+        if (currentSelectedCardUI != null)
+        {
+            var go = currentSelectedCardUI.gameObject;
+            Destroy(go);
+            currentSelectedCardUI = null;
+        }
+
+        // 安全清理：移除手牌区域中任何已经被销毁或无数据的残留
+        CleanupHandAreaVisuals();
 
         DeselectAll();
         UpdateUI();
@@ -315,12 +483,20 @@ public class BattleManager : MonoBehaviour
                 break;
             case "DMG_ENEMY": 
                 EnemyUnitCount -= card.Effect_Val;
+                lastTurnPlayerDamageToEnemy += card.Effect_Val;
                 LogToScreen($"卡牌伤害！造成 {card.Effect_Val} 点伤害");
                 // 🔥 飘字效果：红色伤害
                 DamagePopup.SpawnPopup($"-{card.Effect_Val}", Camera.main.transform.position + Vector3.right * 2, Color.red);
                 break;
+            case "APPLY_WEAKNESS":
+                // 🎭 应用虚弱效果（敌人状态机处理）
+                enemyFSM?.ApplyWeakness();
+                LogToScreen($"发动虚弱术！敌军陷入虚弱状态");
+                DamagePopup.SpawnPopup("WEAK", Camera.main.transform.position + Vector3.right * 2, new Color(1, 0.5f, 1));
+                break;
             default: 
                 EnemyUnitCount -= card.Effect_Val;
+                lastTurnPlayerDamageToEnemy += card.Effect_Val;
                 LogToScreen($"造成 {card.Effect_Val} 点伤害");
                 // 🔥 飘字效果：红色伤害
                 DamagePopup.SpawnPopup($"-{card.Effect_Val}", Camera.main.transform.position + Vector3.right * 2, Color.red);
@@ -376,17 +552,28 @@ public class BattleManager : MonoBehaviour
         isPlayerTurn = true;
         CurrentPhase = BattlePhase.PlayerTurn;
 
-        // ... (扣粮逻辑不变) ...
+        // 📊 全局粮草恢复：每回合 +2（模拟全球资源供应链）
+        PlayerFood += 2;
+        totalFoodGainedThisBattle += 2;
+        LogToScreen($"<color=yellow>补给线恢复：粮草 +2（本战斗累计：+{totalFoodGainedThisBattle}）</color>");
 
         LogToScreen($"第{turnCount}回合");
 
         // 🔥🔥🔥 核心修复：一定要在这里解锁按钮！ 🔥🔥🔥
         SetBasicButtonsActive(true); 
 
+        // 📊 更新敌人状态（传入敌人血量百分比与玩家上回合伤害）
+        float enemyHPPercent = (float)EnemyUnitCount / (EnemyUnitCount + 10); // 简化估值
+        enemyFSM?.UpdateState(enemyHPPercent, lastTurnPlayerDamageToEnemy);
+        lastTurnPlayerDamageToEnemy = 0; // 重置伤害计数
+        enemyFSM?.ResetConsecutiveCount(); // 重置反制计数
+
         // 刷新意图显示
         if (Text_Enemy_Intent != null)
         {
-            // ... (意图计算逻辑不变) ...
+            int predictedDamage = enemyFSM?.CalculateDamage(PlayerArmor) ?? 0;
+            string intentText = enemyFSM?.GetIntentText(predictedDamage) ?? "敌军思考中...";
+            Text_Enemy_Intent.text = intentText;
         }
 
         DrawCards(1);
@@ -405,26 +592,30 @@ public class BattleManager : MonoBehaviour
         
         yield return new WaitForSeconds(1.0f);
         
-        if(EnemyUnitCount > 0) {
-            // 简单伤害公式：敌人战力 - 玩家当前护甲
-            int baseAttack = Mathf.CeilToInt(EnemyUnitCount * 0.2f); 
-            // 还要确保至少有 1 点基础攻击力（除非兵力为0）
-            if (EnemyUnitCount > 0 && baseAttack < 1) baseAttack = 1;
-
-            int dmg = Mathf.Max(0, baseAttack - PlayerArmor);
+        if(EnemyUnitCount > 0) 
+        {
+            // 🎭 使用敌人状态机计算伤害
+            int dmg = enemyFSM?.CalculateDamage(PlayerArmor) ?? 0;
             
-            if (dmg > 0) {
+            if (dmg > 0) 
+            {
                 PlayerUnitCount -= dmg;
-                LogToScreen($"受到 {dmg} 点伤害！");
-                // 🔥 飘字效果：橙色伤害（标记为受敌人伤害）
+                LogToScreen($"受到 {dmg} 点伤害！当前敌人状态：{enemyFSM?.CurrentState}");
+                // 🔥 飘字效果：橙色伤害
                 DamagePopup.SpawnPopup($"-{dmg}", Camera.main.transform.position + Vector3.left * 2, new Color(1, 0.5f, 0));
-            } else {
+            } 
+            else if (enemyFSM?.CurrentState == EnemyStateMachine.State.CHARGING)
+            {
+                LogToScreen("敌军正在蓄力，本回合不攻击...");
+            }
+            else
+            {
                 LogToScreen("完美防御！");
                 // 🔥 飘字效果：蓝色防御提示
                 DamagePopup.SpawnPopup("BLOCK", Camera.main.transform.position + Vector3.left * 2, Color.cyan);
             }
 
-            // 敌人回合结束，玩家护甲通常会衰减 (可选，这里暂时保留一半)
+            // 敌人回合结束，玩家护甲通常会衰减
             PlayerArmor = PlayerArmor / 2; 
         }
         
@@ -462,6 +653,23 @@ public class BattleManager : MonoBehaviour
     void InitializeDeck() { DrawPile.Clear(); HandPile.Clear(); DiscardPile.Clear(); if (DataManager.Instance) DrawPile = DataManager.Instance.GetStarterDeck(); }
     void ShuffleDeck() { for (int i = 0; i < DrawPile.Count; i++) { var temp = DrawPile[i]; int r = Random.Range(i, DrawPile.Count); DrawPile[i] = DrawPile[r]; DrawPile[r] = temp; } }
     void ClearHandUI() { foreach (Transform t in HandAreaTransform) Destroy(t.gameObject); }
+    void CleanupHandAreaVisuals()
+    {
+        if (HandAreaTransform == null) return;
+        var toRemove = new List<GameObject>();
+        foreach (Transform t in HandAreaTransform)
+        {
+            var ui = t.GetComponent<BattleCardUI>();
+            if (ui == null || ui.Data == null)
+            {
+                toRemove.Add(t.gameObject);
+            }
+        }
+        foreach (var go in toRemove)
+        {
+            Destroy(go);
+        }
+    }
     void DrawCards(int c) {
         for (int i = 0; i < c; i++) {
             if (DrawPile.Count == 0 && DiscardPile.Count > 0) { DrawPile.AddRange(DiscardPile); DiscardPile.Clear(); ShuffleDeck(); }

@@ -68,18 +68,12 @@ public class DebugManager : MonoBehaviour
     {
         if (GameManager.Instance != null && DataManager.Instance != null)
         {
-            // 寻找指定ID的事件
-            DataManager.EventData targetEvent = DataManager.Instance.AllEvents.Find(e => e.ID == eventID);
-            
-            if (targetEvent != null)
+            // ✅ 新系统：使用v2事件系统
+            if (UIManager.Instance != null && GameManager.Instance != null)
             {
-                if (UIManager.Instance != null)
-                {
-                    // 强制设置当前事件并显示
-                    GameManager.Instance.forcedNextEventID = eventID;
-                    UIManager.Instance.ShowNextEvent();
-                    Debug.Log($"🚀 [DEBUG] 已强制跳转到事件 ID: {eventID}");
-                }
+                // 直接跳转到指定事件ID
+                GameManager.Instance.ShowEventByID_v2(eventID);
+                Debug.Log($"🚀 [DEBUG] 已强制跳转到事件 ID: {eventID}");
             }
             else
             {
